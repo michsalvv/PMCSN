@@ -8,6 +8,18 @@
 #include "structures.h"
 #include "utils.h"
 
+double getArrival(double current);
+void enqueue(struct node block, double arrival);
+struct job dequeue(struct node block);
+server *findFreeServer(server *s);
+double nextCompletion(struct node *services, server *s);
+double findNextEvent(double nextArrival, struct node *services, server *server_completion);
+double getService(enum node_type type, int stream);
+void process_arrival();
+void process_completion(server * compl );
+void init_network();
+void init_blocks();
+
 int streamID;               // Stream da selezionare per generare il tempo di servizio
 server *server_completion;  // Tiene traccia del server relativo al completamento imminente
 
@@ -140,8 +152,8 @@ void process_arrival() {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         s->completion = clock.current + serviceTime;
         s->status = 1;  // Setto stato busy
-    }else{
-        blocks[TEMPERATURE_CTRL].jobInQueue++ ;       // Se non c'è un servente libero aumenta il numero di job in coda
+    } else {
+        blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
     enqueue(blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
 
@@ -151,27 +163,27 @@ void process_arrival() {
 void process_completion(server * compl ) {
     switch (compl ->nodeType) {
         case TEMPERATURE_CTRL:
-            struct job j = dequeue(blocks[TEMPERATURE_CTRL]);                                  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
-           
-            // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato. 
-            if (blocks[TEMPERATURE_CTRL].jobInQueue > 0){
-                blocks[TEMPERATURE_CTRL].jobInQueue --;
+            struct job j = dequeue(blocks[TEMPERATURE_CTRL]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
+
+            // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
+            if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
+                blocks[TEMPERATURE_CTRL].jobInQueue--;
                 compl ->completion = clock.current + getService(TEMPERATURE_CTRL, compl ->stream);
-            }else{
-                compl->completion = INFINITY;
-                compl->status = IDLE;
+            } else {
+                compl ->completion = INFINITY;
+                compl ->status = IDLE;
             }
             break;
 
             // Gestione blocco destinazione
-            enum node_type destination = getDestination(compl ->nodeType);      // Trova la destinazione adatta per il job appena servito
-            enqueue(blocks[destination], compl ->completion);                   // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
-            
+            enum node_type destination = getDestination(compl ->nodeType);  // Trova la destinazione adatta per il job appena servito
+            enqueue(blocks[destination], compl ->completion);               // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
             server *freeServer = findFreeServer(blocks[destination].firstServer);
-            if (freeServer != NULL){
+            if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
-            }else{
+            } else {
                 blocks[destination].jobInQueue++;
             }
 
