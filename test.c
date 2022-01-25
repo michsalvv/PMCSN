@@ -4,42 +4,11 @@
 #include "DES/rngs.h"
 #include "DES/rvgs.h"
 #include "config.h"
-#include "utils.h"
 #include "math.h"
+#include "structures.h"
+#include "utils.h"
 
-struct job {
-    double arrival;
-    struct job *next;
-};
-
-// Servente
-struct server_t {
-    int id;
-    int status;  // {0=idle, 1=busy}
-    double completion;
-    int stream;
-    enum node_type nodeType;
-    struct server_t *next;
-};
-typedef struct server_t server;
-
-// Blocco
-struct node {
-    struct job *head;
-    struct job *tail;
-    struct job in_service;
-    struct job *head_second;
-    struct job *tail_second;
-    // struct area area;
-    // double opening_time;
-    double active_time;
-    int number;
-    enum node_type type;  // forse non serve
-
-    int num_server;
-    server *firstServer;
-
-} blocks[2];
+int streamID;
 
 /*
 * Arrival on Temperature services
@@ -63,16 +32,6 @@ server *iterateOver(server *s) {
     return current;
 }
 
-void printServerList(server *s) {
-    server *current = s;
-
-    while (current != NULL) {
-        printf("Server #%d \tStatus: %d\tCompletion: %f\n", current->id, current->status, current->completion);
-        if (current->next == NULL) break;
-        current = current->next;
-    }
-}
-
 void enqueue(struct node service, double arrival) {
     struct job *j = (struct job *)malloc(sizeof(struct job));
     if (j == NULL)
@@ -89,14 +48,14 @@ void enqueue(struct node service, double arrival) {
     service.tail = j;
 }
 
-struct job dequeue(struct node block){
+struct job dequeue(struct node block) {
     struct job *j = block.head;
 
-	if (!j->next)
-		block.tail = NULL;
+    if (!j->next)
+        block.tail = NULL;
 
-	block.head = j->next;	
-	free(j);
+    block.head = j->next;
+    free(j);
 }
 
 server *findFreeServer(server *s) {
@@ -109,11 +68,6 @@ server *findFreeServer(server *s) {
             break;
     }
     return NULL;
-
-}
-
-double min(double x, double y) {
-    return (x < y) ? x : y;
 }
 
 /*
@@ -146,51 +100,31 @@ double findNextEvent(double nextArrival, struct node *services, server *server_c
     return min(nextArrival, completion);
 }
 
-double getService(enum node_type type, int id)
-{
-	SelectStream(id);
-	double x;
+double getService(enum node_type type, int id) {
+    SelectStream(id);
+    double x;
 
-	switch (type) {
-	case TEMP:
-		return Exponential(0.5);
-	default:
-		return 0;
-	}
+    switch (type) {
+        case TEMPERATURE_CTRL:
+            return Exponential(0.5);
+        default:
+            return 0;
+    }
 }
 
 int main() {
     int s, e;
     long number = 0;  // number = #job in coda
-
-    // Clock Struct
-    struct {
-        double current;  /* current time                       */
-        double next;     /* next (most imminent) event time    */
-        double arrival;  // next arrival
-    } clock;
+    init_system();
 
     clock.current = START;
     clock.arrival = getArrival(clock.current);
-
-    // init nodes
-    int streamID = 0;
-    blocks[0].num_server = TEMP_SERVERS;
-    blocks[1].num_server = TICKET_SERVERS;
-
-    // Init temp server
-    server *head_1 = (server *)malloc(sizeof(server));
-    head_1->id = 1;
-    head_1->nodeType = TEMP;
-    head_1->completion = INFINITY;
-    head_1->stream = streamID++;
-    blocks[0].firstServer = head_1;
 
     for (int i = 1; i < TEMP_SERVERS; i++) {
         server *s = (server *)malloc(sizeof(server));
         s->id = i + 1;
         s->status = 0;
-        s->nodeType = TEMP;
+        s->nodeType = TEMPERATURE_CTRL;
         s->completion = INFINITY;
         s->stream = streamID++;
         server *last = iterateOver(blocks[0].firstServer);
@@ -199,18 +133,17 @@ int main() {
 
     server *head_2 = (server *)malloc(sizeof(server));
     head_2->id = 1;
-    head_2->nodeType = TICKETS;
+    head_2->nodeType = TICKETS_BUY;
     head_2->completion = INFINITY;
     head_2->stream = streamID++;
     blocks[1].firstServer = head_2;
 
-   
     // Init ticket server
     for (int i = 1; i < TICKET_SERVERS; i++) {
         server *s = (server *)malloc(sizeof(server));
         s->id = i + 1;
         s->status = 0;
-        s->nodeType = TICKETS;
+        s->nodeType = TICKETS_BUY;
         s->completion = INFINITY;
         s->stream = streamID++;
         iterateOver(blocks[1].firstServer)->next = s;
@@ -221,54 +154,77 @@ int main() {
 
     server *server_completion;
     while (clock.arrival <= STOP) {
-        clock.next = findNextEvent(clock.arrival, blocks, server_completion);        // Prossimo evento
-        clock.current = clock.next;                                                  // avanzamento clock
+        clock.next = findNextEvent(clock.arrival, blocks, server_completion);  // Prossimo evento
+        clock.current = clock.next;                                            // avanzamento clock
 
-        // Gestione arrivo in TEMP
+        // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
-            server *s = findFreeServer(blocks[0].firstServer);
-
-            // C'è un servente libero
-            if (s != NULL){
-                double serviceTime = getService(TEMP, s->stream);
-                s->completion = clock.current + serviceTime;
-                s->status = 1;                                      // Setto stato busy
-            }                                             
-            enqueue(blocks[0], clock.arrival);                  // lo appendo nella coda del blocco TEMP
-
-            clock.arrival = getArrival(clock.current);          // Genera prossimo arrivo
-        }
-        
-        // Gestione Completamento 
-        else{
-            switch (server_completion->nodeType)
-            {
-            case TEMP:
-                struct job j = dequeue(blocks[0]);
-                enum node_type destination = getDestination(server_completion->nodeType);
-                enqueue(blocks[destination], server_completion->completion);            // Lo rimetto nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
-
-                // Se il blocco in cui si è verificato il completamento ha altri job in coda
-                // allora bisogna generare il prossimo tempo di completamento per il server che si è liberato
-                if (job in coda nel blocco >0)
-                server_completion->completion = getService(TICKETS, server_completion->stream);
-
-                break;
-            
-            default:
-                break;
-            }
-
+            process_arrival();
         }
 
-        /*
-       If completamento
-       vedo servizio relativo al completamento
-       tolgo dalla coda (tolgo la testa) 
-       Determino la sua prossima destinazione e lo metto nella coda destinazione con tempo di arrivo = tempo di completamento
-
-       generi un tempo di servizio per il job in testa alla coda
-       */
+        // Gestione Completamento
+        else {
+            process_completion(server_completion);
+        }
         printServerList(blocks[0].firstServer);
+    }
+}
+
+// Inizializza tutti i blocchi del sistema
+void init_system() {
+    streamID = 0;
+    blocks[0].num_server = TEMP_SERVERS;
+    blocks[1].num_server = TICKET_SERVERS;
+
+    // Inizializza il blocco per il controllo della temperatura
+    server *head_1 = (server *)malloc(sizeof(server));
+    head_1->id = 1;
+    head_1->nodeType = TEMPERATURE_CTRL;
+    head_1->completion = INFINITY;
+    head_1->stream = streamID++;
+    blocks[0].firstServer = head_1;
+}
+
+/*
+Processa un arrivo dall'esterno
+*/
+void process_arrival() {
+    server *s = findFreeServer(blocks[0].firstServer);
+
+    // C'è un servente libero
+    if (s != NULL) {
+        double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
+        s->completion = clock.current + serviceTime;
+        s->status = 1;  // Setto stato busy
+    }
+    enqueue(blocks[0], clock.arrival);  // lo appendo nella coda del blocco TEMP
+
+    clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
+}
+
+/*
+If completamento
+vedo servizio relativo al completamento
+tolgo dalla coda (tolgo la testa) 
+Determino la sua prossima destinazione e lo metto nella coda destinazione con tempo di arrivo = tempo di completamento
+generi un tempo di servizio per il job in testa alla coda
+*/
+void process_completion(server * compl ) {
+    switch (compl ->nodeType) {
+        case TEMPERATURE_CTRL:
+            struct job j = dequeue(blocks[0]);
+            enum node_type destination = getDestination(compl ->nodeType);
+            enqueue(blocks[destination], compl ->completion);  // Lo rimetto nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+
+            // Se il blocco in cui si è verificato il completamento ha altri job in coda
+            // allora bisogna generare il prossimo tempo di completamento per il server che si è liberato
+            // if job in coda nel blocco > 0
+            if (1)
+                compl ->completion = getService(TICKETS_BUY, compl ->stream);
+
+            break;
+
+        default:
+            break;
     }
 }
