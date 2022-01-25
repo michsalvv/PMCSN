@@ -52,3 +52,7 @@ void waitInput() {
     while (getchar() != '\n')
         ;
 }
+
+void clearScreen() {
+    printf("\033[H\033[2J");
+}

@@ -25,6 +25,11 @@ server *server_completion;  // Tiene traccia del server relativo al completament
 struct node blocks[2];
 struct clock_t clock;
 
+struct minCompletion {
+    double value;
+    server *server;
+} minCompletion;
+
 int main() {
     init_network();
     printServerList(blocks[TEMPERATURE_CTRL]);
@@ -32,10 +37,21 @@ int main() {
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
-        server_completion = nextCompletion(blocks);
+        clearScreen();
+        printf("Prossimo arrivo: %f\n", clock.arrival);
+        printf("Clock corrente: %f\n", clock.current);
 
-        clock.next = min(server_completion->completion, clock.arrival);  // Ottengo il prossimo evento
-        clock.current = clock.next;                                      // Avanzamento del clock al valore del prossimo evento
+        if (minCompletion.server != NULL) {
+            server_completion = minCompletion.server;
+        }
+
+        clock.next = min(minCompletion.value, clock.arrival);  // Ottengo il prossimo evento
+        clock.current = clock.next;                            // Avanzamento del clock al valore del prossimo evento
+
+        printf("Clock next Event: %f\n", clock.next);
+        printf("minCompletion: %f\n", minCompletion.value);
+        printServerList(blocks[TEMPERATURE_CTRL]);
+        printServerList(blocks[TICKET_BUY]);
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
@@ -46,8 +62,6 @@ int main() {
         else {
             process_completion(server_completion);
         }
-        printServerList(blocks[TEMPERATURE_CTRL]);
-        printServerList(blocks[TICKET_BUY]);
     }
 }
 
@@ -147,9 +161,9 @@ double getService(enum node_type type, int stream) {
 
     switch (type) {
         case TEMPERATURE_CTRL:
-            return Exponential(0.5);
+            return Exponential(0.9);
         case TICKET_BUY:
-            return Exponential(0.8);
+            return Exponential(18);
         case TICKET_GATE:
             return Exponential(0.7);
         case GREEN_PASS:
@@ -172,6 +186,10 @@ void process_arrival() {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         s->completion = clock.current + serviceTime;
         s->status = 1;  // Setto stato busy
+        if (s->completion < minCompletion.value) {
+            minCompletion.value = s->completion;
+            minCompletion.server = s;
+        }
     } else {
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
@@ -185,10 +203,17 @@ void process_completion(server * compl ) {
         case TEMPERATURE_CTRL:
             struct job j = dequeue(&blocks[TEMPERATURE_CTRL]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
 
+            minCompletion.value = INFINITY;
+            minCompletion.server = NULL;
+
             // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
             if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
                 blocks[TEMPERATURE_CTRL].jobInQueue--;
                 compl ->completion = clock.current + getService(TEMPERATURE_CTRL, compl ->stream);
+                if (compl ->completion < minCompletion.value) {
+                    minCompletion.value = compl ->completion;
+                    minCompletion.server = compl ;
+                }
             } else {
                 compl ->completion = INFINITY;
                 compl ->status = IDLE;
@@ -203,6 +228,10 @@ void process_completion(server * compl ) {
             if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
                 freeServer->status = BUSY;
+                if (freeServer->completion < minCompletion.value) {
+                    minCompletion.value = freeServer->completion;
+                    minCompletion.server = freeServer;
+                }
             } else {
                 blocks[destination].jobInQueue++;
             }
@@ -213,6 +242,10 @@ void process_completion(server * compl ) {
             if (blocks[TICKET_BUY].jobInQueue > 0) {
                 blocks[TICKET_BUY].jobInQueue--;
                 compl ->completion = clock.current + getService(TICKET_BUY, compl ->stream);
+                if (compl ->completion < minCompletion.value) {
+                    minCompletion.value = compl ->completion;
+                    minCompletion.server = compl ;
+                }
             }
             compl ->completion = INFINITY;
             compl ->status = IDLE;
@@ -235,6 +268,8 @@ void init_network() {
 
     clock.current = START;
     clock.arrival = getArrival(clock.current);
+
+    minCompletion.value = INFINITY;
 }
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
