@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "config.h"
-#include "structures.h"
 
 enum node_type getDestination(enum node_type from) {
     switch (from) {
@@ -30,4 +29,30 @@ server *iterateOver(server *s) {
             break;
     }
     return current;
+}
+
+// Stampa la lista dei server con il relativo stato
+void printServerList(struct node block) {
+    server *current = block.firstServer;
+    printf("\n-- Blocco #%d #jobInQueue: %d--\n", block.type, block.jobInQueue);
+    while (current != NULL) {
+        printf("Server #%d \tStatus: %d\tCompletion: %f\t\t Type: %d\tStream: %d\n", current->id, current->status, current->completion, current->nodeType, current->stream);
+        if (current->next == NULL) break;
+        current = current->next;
+    }
+}
+
+/*
+** Mette in pausa il programma aspettando l'input utente
+*/
+void waitInput() {
+    if (DEBUG != 1)
+        return;
+    char c = getchar();
+    while (getchar() != '\n')
+        ;
+}
+
+void clearScreen() {
+    printf("\033[H\033[2J");
 }

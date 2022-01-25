@@ -1,5 +1,5 @@
 all:
-	gcc main.c ./DES/rngs.c ./DES/rvgs.c -lm -o main
+	gcc ./DES/rngs.c ./DES/rvgs.c utils.c test.c -lm -o test -g
 
 clean:
-	rm main
+	rm test
