@@ -140,7 +140,7 @@ server *findFreeServer(server *s) {
 * Restituisce inoltre il server interessato
 */
 double nextCompletion(struct node *services, server *s) {
-    double minCompletion = services[0].firstServer->completion;
+    double minCompletion = services[TEMPERATURE_CTRL].firstServer->completion;
     int numServices = NUM_SERVICES;
     server *current;
     for (int j = 0; j < numServices - 1; j++) {
@@ -165,9 +165,9 @@ double findNextEvent(double nextArrival, struct node *services, server *server_c
     return min(nextArrival, completion);
 }
 
-// Genera un tempo di servizio secondo la distribuzione specificata
-double getService(enum node_type type, int id) {
-    SelectStream(id);
+// Genera un tempo di servizio secondo la distribuzione specificata e stream del servente individuato
+double getService(enum node_type type, int stream) {
+    SelectStream(stream);
     double x;
 
     switch (type) {
@@ -182,40 +182,47 @@ double getService(enum node_type type, int id) {
 Processa un arrivo dall'esterno
 */
 void process_arrival() {
-    server *s = findFreeServer(blocks[0].firstServer);
+    server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
 
     // C'è un servente libero
     if (s != NULL) {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         s->completion = clock.current + serviceTime;
         s->status = 1;  // Setto stato busy
+    }else{
+        blocks[TEMPERATURE_CTRL].jobInQueue++ ;       // Se non c'è un servente libero aumenta il numero di job in coda
     }
-    enqueue(blocks[0], clock.arrival);  // lo appendo nella coda del blocco TEMP
+    enqueue(blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
 
     clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
 }
 
-/*
-If completamento
-vedo servizio relativo al completamento
-tolgo dalla coda (tolgo la testa) 
-Determino la sua prossima destinazione e lo metto nella coda destinazione con tempo di arrivo = tempo di completamento
-generi un tempo di servizio per il job in testa alla coda
-*/
 void process_completion(server * compl ) {
     switch (compl ->nodeType) {
         case TEMPERATURE_CTRL:
-            struct job j = dequeue(blocks[0]);
-            enum node_type destination = getDestination(compl ->nodeType);
-            enqueue(blocks[destination], compl ->completion);  // Lo rimetto nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
-
-            // Se il blocco in cui si è verificato il completamento ha altri job in coda
-            // allora bisogna generare il prossimo tempo di completamento per il server che si è liberato
-            // if job in coda nel blocco > 0
-            if (1)
-                compl ->completion = getService(TICKETS_BUY, compl ->stream);
-
+            struct job j = dequeue(blocks[TEMPERATURE_CTRL]);                                  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
+           
+            // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato. 
+            if (blocks[TEMPERATURE_CTRL].jobInQueue > 0){
+                blocks[TEMPERATURE_CTRL].jobInQueue --;
+                compl ->completion = clock.current + getService(TEMPERATURE_CTRL, compl ->stream);
+            }else{
+                compl->completion = INFINITY;
+                compl->status = IDLE;
+            }
             break;
+
+            // Gestione blocco destinazione
+            enum node_type destination = getDestination(compl ->nodeType);      // Trova la destinazione adatta per il job appena servito
+            enqueue(blocks[destination], compl ->completion);                   // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+            
+            // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
+            server *freeServer = findFreeServer(blocks[destination].firstServer);
+            if (freeServer != NULL){
+                freeServer->completion = clock.current + getService(destination, freeServer->stream);
+            }else{
+                blocks[destination].jobInQueue++;
+            }
 
         default:
             break;

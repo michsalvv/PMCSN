@@ -9,6 +9,9 @@
 #define SERVERS 3
 #define DEBUG 0
 
+#define BUSY 1
+#define IDLE 0
+
 #define handle_error(msg)   \
     do {                    \
         perror(msg);        \

@@ -46,7 +46,7 @@ struct node {
     // struct area area;
     // double opening_time;
     double active_time;
-    int number;
+    int jobInQueue;
     enum node_type type;  // forse non serve
 
     int num_server;
