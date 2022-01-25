@@ -7,7 +7,7 @@ enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
             // TODO aggiungere probabilità
-            return TICKETS_BUY;
+            return TICKET_BUY;
             break;
 
         default:
