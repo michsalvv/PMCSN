@@ -1,5 +1,5 @@
 all:
-	gcc main.c ./DES/rngs.c ./DES/rvgs.c -lm -o main
+	gcc main.c ./DES/rngs.c ./DES/rvgs.c *.c -lm -o main
 
 clean:
 	rm main

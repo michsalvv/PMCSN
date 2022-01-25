@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "config.h"
-#include "structures.h"
 
 // Stampa la lista dei server con il relativo stato
 void printServerList(server *s) {

@@ -4,8 +4,8 @@
 #include "DES/rngs.h"
 #include "DES/rvgs.h"
 #include "config.h"
+#include "debug.h"
 #include "math.h"
-#include "structures.h"
 #include "utils.h"
 
 double getArrival(double current);
@@ -22,6 +22,9 @@ void init_blocks();
 
 int streamID;               // Stream da selezionare per generare il tempo di servizio
 server *server_completion;  // Tiene traccia del server relativo al completamento imminente
+
+struct node blocks[2];
+struct clock_t clock;
 
 int main() {
     init_network();
@@ -104,7 +107,7 @@ server *findFreeServer(server *s) {
 */
 double nextCompletion(struct node *services, server *s) {
     double minCompletion = services[TEMPERATURE_CTRL].firstServer->completion;
-    int numServices = NUM_SERVICES;
+    int numServices = NUM_BLOCKS;
     server *current;
     for (int j = 0; j < numServices - 1; j++) {
         current = services[j].firstServer;
@@ -201,8 +204,7 @@ void init_network() {
     blocks[SEASON_GATE].num_server = SEASON_GATE_SERVERS;
     blocks[GREEN_PASS].num_server = GREEN_PASS_SERVERS;
 
-    init_temperature_ctrl();
-    init_tickets_buy();
+    init_blocks();
 
     clock.current = START;
     clock.arrival = getArrival(clock.current);
