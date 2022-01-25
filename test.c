@@ -10,108 +10,6 @@
 
 int streamID;
 
-/*
-* Arrival on Temperature services
-* TODO gestire le fascie orarie
-*/
-double getArrival(double current) {
-    double arrival = current;
-    SelectStream(254);
-    arrival += Exponential(0.346153833);
-    return (arrival);
-}
-
-server *iterateOver(server *s) {
-    server *current = s;
-    while (current != NULL) {
-        if (current->next != NULL) {
-            current = current->next;
-        } else
-            break;
-    }
-    return current;
-}
-
-void enqueue(struct node service, double arrival) {
-    struct job *j = (struct job *)malloc(sizeof(struct job));
-    if (j == NULL)
-        handle_error("malloc");
-
-    j->arrival = arrival;
-    j->next = NULL;
-
-    if (service.tail)  // Appendi alla coda se esiste, altrimenti è la testa
-        service.tail->next = j;
-    else
-        service.head = j;
-
-    service.tail = j;
-}
-
-struct job dequeue(struct node block) {
-    struct job *j = block.head;
-
-    if (!j->next)
-        block.tail = NULL;
-
-    block.head = j->next;
-    free(j);
-}
-
-server *findFreeServer(server *s) {
-    server *current = s;
-    while (current != NULL) {
-        if (current->status == 0) return current;
-        if (current->next != NULL) {
-            current = current->next;
-        } else
-            break;
-    }
-    return NULL;
-}
-
-/*
-* Scorre tra i server di tutti i servizi per trovare l'imminente COMPLETAMENTO
-* Restituisce inoltre il server interessato
-*/
-double nextCompletion(struct node *services, server *s) {
-    double minCompletion = services[0].firstServer->completion;
-    int numServices = NUM_SERVICES;
-    server *current;
-    for (int j = 0; j < numServices - 1; j++) {
-        current = services[j].firstServer;
-        while (current != NULL) {
-            minCompletion = min(minCompletion, current->completion);
-            if (current->next != NULL) {
-                current = current->next;
-            } else
-                break;
-        }
-    }
-    s = current;
-    return minCompletion;
-}
-
-/*
-*  Restituisce il clock relativo all'imminente evento (arrivo o completamento)
-*/
-double findNextEvent(double nextArrival, struct node *services, server *server_completion) {
-    double completion = nextCompletion(services, server_completion);
-    return min(nextArrival, completion);
-}
-
-double getService(enum node_type type, int id) {
-    SelectStream(id);
-    double x;
-
-    switch (type) {
-        case TEMPERATURE_CTRL:
-            return Exponential(0.5);
-        default:
-            return 0;
-    }
-}
-
 int main() {
     int s, e;
     long number = 0;  // number = #job in coda
@@ -165,7 +63,6 @@ int main() {
         // Gestione Completamento
         else {
             process_completion(server_completion);
-            // remove
         }
         printServerList(blocks[0].firstServer);
     }
@@ -184,6 +81,101 @@ void init_system() {
     head_1->completion = INFINITY;
     head_1->stream = streamID++;
     blocks[0].firstServer = head_1;
+}
+
+/*
+* Genera un tempo di Arrivo secondo la distribuzione specificata
+* TODO gestire le fascie orarie
+*/
+double getArrival(double current) {
+    double arrival = current;
+    SelectStream(254);
+    arrival += Exponential(0.346153833);
+    return (arrival);
+}
+
+// Inserisce un job nella coda del blocco specificata
+void enqueue(struct node block, double arrival) {
+    struct job *j = (struct job *)malloc(sizeof(struct job));
+    if (j == NULL)
+        handle_error("malloc");
+
+    j->arrival = arrival;
+    j->next = NULL;
+
+    if (block.tail)  // Appendi alla coda se esiste, altrimenti è la testa
+        block.tail->next = j;
+    else
+        block.head = j;
+
+    block.tail = j;
+}
+
+// Ritorna e rimuove il job dalla coda del blocco specificata
+struct job dequeue(struct node block) {
+    struct job *j = block.head;
+
+    if (!j->next)
+        block.tail = NULL;
+
+    block.head = j->next;
+    free(j);
+}
+
+// Ritorna un server libero nella Linked List del blocco
+server *findFreeServer(server *s) {
+    server *current = s;
+    while (current != NULL) {
+        if (current->status == 0) return current;
+        if (current->next != NULL) {
+            current = current->next;
+        } else
+            break;
+    }
+    return NULL;
+}
+
+/*
+* Scorre tra i server di tutti i servizi per trovare l'imminente COMPLETAMENTO
+* Restituisce inoltre il server interessato
+*/
+double nextCompletion(struct node *services, server *s) {
+    double minCompletion = services[0].firstServer->completion;
+    int numServices = NUM_SERVICES;
+    server *current;
+    for (int j = 0; j < numServices - 1; j++) {
+        current = services[j].firstServer;
+        while (current != NULL) {
+            minCompletion = min(minCompletion, current->completion);
+            if (current->next != NULL) {
+                current = current->next;
+            } else
+                break;
+        }
+    }
+    s = current;
+    return minCompletion;
+}
+
+/*
+*  Restituisce il clock relativo all'imminente evento (arrivo o completamento)
+*/
+double findNextEvent(double nextArrival, struct node *services, server *server_completion) {
+    double completion = nextCompletion(services, server_completion);
+    return min(nextArrival, completion);
+}
+
+// Genera un tempo di servizio secondo la distribuzione specificata
+double getService(enum node_type type, int id) {
+    SelectStream(id);
+    double x;
+
+    switch (type) {
+        case TEMPERATURE_CTRL:
+            return Exponential(0.5);
+        default:
+            return 0;
+    }
 }
 
 /*
