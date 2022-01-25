@@ -165,6 +165,7 @@ int main() {
         // Gestione Completamento
         else {
             process_completion(server_completion);
+            // remove
         }
         printServerList(blocks[0].firstServer);
     }
