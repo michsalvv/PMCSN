@@ -4,7 +4,6 @@
 #include "DES/rngs.h"
 #include "DES/rvgs.h"
 #include "config.h"
-#include "debug.h"
 #include "math.h"
 #include "utils.h"
 
@@ -28,8 +27,8 @@ struct clock_t clock;
 
 int main() {
     init_network();
-    printServerList(blocks[0].firstServer);
-    printServerList(blocks[1].firstServer);
+    printServerList(blocks[TEMPERATURE_CTRL]);
+    printServerList(blocks[TICKET_BUY]);
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
@@ -45,7 +44,7 @@ int main() {
         else {
             process_completion(server_completion);
         }
-        printServerList(blocks[0].firstServer);
+        printServerList(blocks[TEMPERATURE_CTRL]);
     }
 }
 
@@ -240,6 +239,7 @@ void init_blocks() {
         head->completion = INFINITY;
         head->stream = streamID++;
         blocks[block_type].firstServer = head;
+        blocks[block_type].type = block_type;
 
         for (int i = 1; i < servers; i++) {
             server *s = (server *)malloc(sizeof(server));

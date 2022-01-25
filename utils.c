@@ -32,9 +32,9 @@ server *iterateOver(server *s) {
 }
 
 // Stampa la lista dei server con il relativo stato
-void printServerList(server *s) {
-    server *current = s;
-
+void printServerList(struct node block) {
+    server *current = block.firstServer;
+    printf("-- Blocco #%d --\n", block.type);
     while (current != NULL) {
         printf("Server #%d \tStatus: %d\tCompletion: %f\n", current->id, current->status, current->completion);
         if (current->next == NULL) break;
