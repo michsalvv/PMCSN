@@ -8,52 +8,18 @@
 #include "structures.h"
 #include "utils.h"
 
-int streamID;
+int streamID;               // Stream da selezionare per generare il tempo di servizio
+server *server_completion;  // Tiene traccia del server relativo al completamento imminente
 
 int main() {
-    int s, e;
-    long number = 0;  // number = #job in coda
-    init_system();
-
-    clock.current = START;
-    clock.arrival = getArrival(clock.current);
-
-    for (int i = 1; i < TEMP_SERVERS; i++) {
-        server *s = (server *)malloc(sizeof(server));
-        s->id = i + 1;
-        s->status = 0;
-        s->nodeType = TEMPERATURE_CTRL;
-        s->completion = INFINITY;
-        s->stream = streamID++;
-        server *last = iterateOver(blocks[0].firstServer);
-        last->next = s;
-    }
-
-    server *head_2 = (server *)malloc(sizeof(server));
-    head_2->id = 1;
-    head_2->nodeType = TICKETS_BUY;
-    head_2->completion = INFINITY;
-    head_2->stream = streamID++;
-    blocks[1].firstServer = head_2;
-
-    // Init ticket server
-    for (int i = 1; i < TICKET_SERVERS; i++) {
-        server *s = (server *)malloc(sizeof(server));
-        s->id = i + 1;
-        s->status = 0;
-        s->nodeType = TICKETS_BUY;
-        s->completion = INFINITY;
-        s->stream = streamID++;
-        iterateOver(blocks[1].firstServer)->next = s;
-    }
-
+    init_network();
     printServerList(blocks[0].firstServer);
     printServerList(blocks[1].firstServer);
 
-    server *server_completion;
+    // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
-        clock.next = findNextEvent(clock.arrival, blocks, server_completion);  // Prossimo evento
-        clock.current = clock.next;                                            // avanzamento clock
+        clock.next = findNextEvent(clock.arrival, blocks, server_completion);  // Ottengo il prossimo evento
+        clock.current = clock.next;                                            // Avanzamento del clock al valore del prossimo evento
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
@@ -66,21 +32,6 @@ int main() {
         }
         printServerList(blocks[0].firstServer);
     }
-}
-
-// Inizializza tutti i blocchi del sistema
-void init_system() {
-    streamID = 0;
-    blocks[0].num_server = TEMP_SERVERS;
-    blocks[1].num_server = TICKET_SERVERS;
-
-    // Inizializza il blocco per il controllo della temperatura
-    server *head_1 = (server *)malloc(sizeof(server));
-    head_1->id = 1;
-    head_1->nodeType = TEMPERATURE_CTRL;
-    head_1->completion = INFINITY;
-    head_1->stream = streamID++;
-    blocks[0].firstServer = head_1;
 }
 
 /*
@@ -213,11 +164,71 @@ void process_completion(server * compl ) {
             // allora bisogna generare il prossimo tempo di completamento per il server che si è liberato
             // if job in coda nel blocco > 0
             if (1)
-                compl ->completion = getService(TICKETS_BUY, compl ->stream);
+                compl ->completion = getService(TICKET_BUY, compl ->stream);
 
             break;
 
         default:
             break;
+    }
+}
+
+// Inizializza tutti i blocchi del sistema
+void init_network() {
+    streamID = 0;
+    blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;
+    blocks[TICKET_BUY].num_server = TICKET_BUY_SERVERS;
+    blocks[TICKET_GATE].num_server = TICKET_GATE_SERVERS;
+    blocks[SEASON_GATE].num_server = SEASON_GATE_SERVERS;
+    blocks[GREEN_PASS].num_server = GREEN_PASS_SERVERS;
+
+    init_temperature_ctrl();
+    init_tickets_buy();
+
+    clock.current = START;
+    clock.arrival = getArrival(clock.current);
+}
+
+// Inizializza tutti i serventi di tutti i blocchi della rete
+void init_blocks() {
+    for (int block_type = 0; block_type <= NUM_BLOCKS; block_type++) {
+        int servers;
+        switch (block_type) {
+            case TEMPERATURE_CTRL:
+                servers = TEMPERATURE_CTRL_SERVERS;
+                break;
+            case TICKET_BUY:
+                servers = TICKET_BUY_SERVERS;
+                break;
+            case TICKET_GATE:
+                servers = TICKET_GATE_SERVERS;
+                break;
+            case SEASON_GATE:
+                servers = SEASON_GATE_SERVERS;
+                break;
+            case GREEN_PASS:
+                servers = GREEN_PASS_SERVERS;
+                break;
+            default:
+                break;
+        }
+
+        server *head = (server *)malloc(sizeof(server));
+        head->id = 1;
+        head->nodeType = block_type;
+        head->completion = INFINITY;
+        head->stream = streamID++;
+        blocks[block_type].firstServer = head;
+
+        for (int i = 1; i < servers; i++) {
+            server *s = (server *)malloc(sizeof(server));
+            s->id = i + 1;
+            s->status = 0;
+            s->nodeType = block_type;
+            s->completion = INFINITY;
+            s->stream = streamID++;
+            server *last = iterateOver(blocks[block_type].firstServer);
+            last->next = s;
+        }
     }
 }
