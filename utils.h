@@ -1,12 +1,7 @@
 enum node_type getDestination(enum node_type from);
 
 typedef struct {
-    double value;
-    server *server;
-} completion;
-
-typedef struct {
-    completion sorted[TOTAL_SERVERS];
+    server sorted[TOTAL_SERVERS];
     int num_completion;
 } sorted_completions;
 
@@ -15,4 +10,6 @@ double min(double a, double b);
 void printServerList(struct node b);
 void waitInput();
 void clearScreen();
-int insertSorted(sorted_completions *compls, completion key);
+int binarySearch(sorted_completions *compls, int low, int high, server key);
+int insertSorted(sorted_completions *compls, server key);
+int deleteElement(sorted_completions *compls, server key);

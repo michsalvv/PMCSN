@@ -49,15 +49,14 @@ struct job {
 };
 
 // Servente
-struct server_t {
+typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
     double completion;
     int stream;
     enum node_type nodeType;
     struct server_t *next;
-};
-typedef struct server_t server;
+} server;
 
 // Blocco
 struct node {
