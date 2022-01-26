@@ -75,3 +75,14 @@ struct node {
     int num_server;
     server *firstServer;
 };
+
+typedef struct {
+    int sorted_ids[TOTAL_SERVERS];
+    int num_completion;
+} sorted_completions;
+
+typedef struct {
+    server *server_list[TOTAL_SERVERS];
+    server *block_heads[5];
+    sorted_completions sorted_completions;
+} network_status;
