@@ -64,9 +64,9 @@ int main() {
         clock.current = clock.next;                                   // Avanzamento del clock al valore del prossimo evento
 
         printf("Clock next Event: %f\n", clock.next);
-        printServerList(blocks[TEMPERATURE_CTRL]);
-        printServerList(blocks[TICKET_BUY]);
-        print_array(global_completions, TOTAL_SERVERS);
+        printServerList(&global_completions, TEMPERATURE_CTRL, blocks[TEMPERATURE_CTRL]);
+        printServerList(&global_completions, TICKET_BUY, blocks[TICKET_BUY]);
+        print_array(&global_completions, TOTAL_SERVERS);
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
@@ -157,7 +157,7 @@ double getService(enum node_type type, int stream) {
 Processa un arrivo dall'esterno
 */
 void process_arrival() {
-    server *s = findFreeServer(&global_completions.block_heads[TEMPERATURE_CTRL]);
+    server *s = findFreeServer(global_completions.block_heads[TEMPERATURE_CTRL]);
 
     // C'è un servente libero
     if (s != NULL) {
@@ -195,7 +195,7 @@ void process_completion(server * compl ) {
             enqueue(&blocks[destination], compl ->completion);              // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
-            server *freeServer = findFreeServer(&global_completions.block_heads[destination]);
+            server *freeServer = findFreeServer(global_completions.block_heads[destination]);
             if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
                 freeServer->status = BUSY;
@@ -240,7 +240,7 @@ void init_network() {
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
 void init_blocks() {
-    for (int block_type = 0; block_type <= NUM_BLOCKS; block_type++) {
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         int servers;
 
         server *head = (server *)malloc(sizeof(server));
@@ -269,8 +269,8 @@ void init_blocks() {
                 break;
         }
 
-        global_completions.block_heads[block_type] = *head;
-        blocks[block_type].firstServer = &global_completions.block_heads[block_type];
+        global_completions.block_heads[block_type] = head;
+        server *last = head;
 
         for (int i = 1; i < servers; i++) {
             server *s = (server *)malloc(sizeof(server));
@@ -279,8 +279,10 @@ void init_blocks() {
             s->nodeType = block_type;
             s->completion = INFINITY;
             s->stream = streamID++;
-            server *last = iterateOver(&global_completions.block_heads[block_type]);
             last->next = s;
+            insertSorted(&global_completions, *last);
+            last = s;
         }
+        insertSorted(&global_completions, *last);
     }
 }
