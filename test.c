@@ -10,7 +10,7 @@
 double getArrival(double current);
 void enqueue(struct node *block, double arrival);
 struct job dequeue(struct node *block);
-server *findFreeServer(server *s);
+server *findFreeServer(server *block_head);
 double findNextEvent(double nextArrival, struct node *services, server **server_completion);
 double getService(enum node_type type, int stream);
 void process_arrival();
@@ -51,6 +51,7 @@ void debug_test_sorted() {
 int main() {
     //debug_test_sorted();
     init_network();
+    printf("%d\n", global_completions.num_completion);
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
@@ -119,8 +120,8 @@ struct job dequeue(struct node *block) {
 }
 
 // Ritorna un server libero nella Linked List del blocco
-server *findFreeServer(server *s) {
-    server *current = s;
+server *findFreeServer(server *block_head) {
+    server *current = block_head;
     while (current != NULL) {
         if (current->status == 0) return current;
         if (current->next != NULL) {
@@ -156,7 +157,7 @@ double getService(enum node_type type, int stream) {
 Processa un arrivo dall'esterno
 */
 void process_arrival() {
-    server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
+    server *s = findFreeServer(&global_completions.block_heads[TEMPERATURE_CTRL]);
 
     // C'è un servente libero
     if (s != NULL) {
@@ -194,7 +195,7 @@ void process_completion(server * compl ) {
             enqueue(&blocks[destination], compl ->completion);              // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
-            server *freeServer = findFreeServer(blocks[destination].firstServer);
+            server *freeServer = findFreeServer(&global_completions.block_heads[destination]);
             if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
                 freeServer->status = BUSY;
@@ -222,6 +223,7 @@ void process_completion(server * compl ) {
 
 // Inizializza tutti i blocchi del sistema
 void init_network() {
+    printf("Initializing Network\n");
     streamID = 0;
     blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;
     blocks[TICKET_BUY].num_server = TICKET_BUY_SERVERS;
@@ -232,17 +234,21 @@ void init_network() {
 
     clock.current = START;
     clock.arrival = getArrival(clock.current);
-
-    for (int i = 0; i < TOTAL_SERVERS; i++) {
-        global_completions.sorted->completion = INFINITY;
-        global_completions.num_completion = 0;
-    }
+    global_completions.num_completion = 0;
+    printf("%d\n", global_completions.num_completion);
 }
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
 void init_blocks() {
     for (int block_type = 0; block_type <= NUM_BLOCKS; block_type++) {
         int servers;
+
+        server *head = (server *)malloc(sizeof(server));
+        head->id = 1;
+        head->nodeType = block_type;
+        head->completion = INFINITY;
+        head->stream = streamID++;
+
         switch (block_type) {
             case TEMPERATURE_CTRL:
                 servers = TEMPERATURE_CTRL_SERVERS;
@@ -263,13 +269,8 @@ void init_blocks() {
                 break;
         }
 
-        server *head = (server *)malloc(sizeof(server));
-        head->id = 1;
-        head->nodeType = block_type;
-        head->completion = INFINITY;
-        head->stream = streamID++;
-        blocks[block_type].firstServer = head;
-        blocks[block_type].type = block_type;
+        global_completions.block_heads[block_type] = *head;
+        blocks[block_type].firstServer = &global_completions.block_heads[block_type];
 
         for (int i = 1; i < servers; i++) {
             server *s = (server *)malloc(sizeof(server));
@@ -278,7 +279,7 @@ void init_blocks() {
             s->nodeType = block_type;
             s->completion = INFINITY;
             s->stream = streamID++;
-            server *last = iterateOver(blocks[block_type].firstServer);
+            server *last = iterateOver(&global_completions.block_heads[block_type]);
             last->next = s;
         }
     }
