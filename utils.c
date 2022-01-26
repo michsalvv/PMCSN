@@ -56,3 +56,80 @@ void waitInput() {
 void clearScreen() {
     printf("\033[H\033[2J");
 }
+
+typedef struct {
+    server sorted[TOTAL_SERVERS];
+    int num_completion;
+} sorted_completions;
+
+// Inserisce un elemento nella lista ordinata
+int insertSorted(sorted_completions *compls, server key) {
+    printf("inserting sorted: %f\n", key.completion);
+
+    int i;
+    int n = compls->num_completion;
+
+    for (i = n - 1; (i >= 0 && (compls->sorted[i].completion > key.completion)); i--) {
+        compls->sorted[i + 1] = compls->sorted[i];
+    }
+    compls->sorted[i + 1] = key;
+    compls->num_completion++;
+
+    return (n + 1);
+}
+
+// Ricerca binaria di un elemento su una lista ordinata
+int binarySearch(sorted_completions *compls, int low, int high, server key) {
+    if (high < low) {
+        return -1;
+    }
+
+    int mid = (low + high) / 2;
+    if (key.completion == compls->sorted[mid].completion) {
+        return mid;
+    }
+    if (key.completion > compls->sorted[mid].completion) {
+        return binarySearch(compls, (mid + 1), high, key);
+    }
+    return binarySearch(compls, low, (mid - 1), key);
+}
+
+/* Function to delete an element */
+int deleteElement(sorted_completions *compls, server key) {
+    // Find position of element to be deleted
+    printf("Deleting Sorted: %f\n", key.completion);
+
+    int n = compls->num_completion;
+
+    int pos = binarySearch(compls, 0, n - 1, key);
+
+    if (pos == -1) {
+        printf("Element not found");
+        return n;
+    }
+
+    // Deleting element
+    int i;
+    for (i = pos; i < n; i++) {
+        compls->sorted[i].completion = compls->sorted[i + 1].completion;
+    }
+    compls->num_completion--;
+
+    return n - 1;
+}
+
+/*
+char *format_server(server s) {
+    char formatted[256];
+    sprintf(&formatted,"");
+}
+*/
+
+void print_array(sorted_completions *sorted, int num) {
+    printf("List Status: %d | {", sorted->num_completion);
+
+    for (int i = 0; i < num; i++) {
+        printf("%f , ", sorted->sorted[i].completion);
+    }
+    printf("}");
+}

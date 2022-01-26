@@ -3,6 +3,7 @@
 #define TICKET_GATE_SERVERS 5
 #define SEASON_GATE_SERVERS 5
 #define GREEN_PASS_SERVERS 5
+#define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
 #define STOP 10800.0  // Configurazone per prima fascia
@@ -48,15 +49,14 @@ struct job {
 };
 
 // Servente
-struct server_t {
+typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
     double completion;
     int stream;
     enum node_type nodeType;
     struct server_t *next;
-};
-typedef struct server_t server;
+} server;
 
 // Blocco
 struct node {
