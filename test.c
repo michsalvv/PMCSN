@@ -11,7 +11,6 @@ double getArrival(double current);
 void enqueue(struct node *block, double arrival);
 struct job dequeue(struct node *block);
 server *findFreeServer(server *s);
-server *nextCompletion(struct node *services);
 double findNextEvent(double nextArrival, struct node *services, server **server_completion);
 double getService(enum node_type type, int stream);
 void process_arrival();
@@ -20,7 +19,7 @@ void init_network();
 void init_blocks();
 
 int streamID;                           // Stream da selezionare per generare il tempo di servizio
-server *server_completion;              // Tiene traccia del server relativo al completamento imminente
+server *nextCompletion;                 // Tiene traccia del server relativo al completamento imminente
 sorted_completions global_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 
 struct node blocks[2];
@@ -41,12 +40,10 @@ void debug_test_sorted() {
     printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted.num_completion, sorted.sorted[0].completion, sorted.sorted[1].completion, sorted.sorted[2].completion, sorted.sorted[3].completion);
     insertSorted(&sorted, s2);
     printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted.num_completion, sorted.sorted[0].completion, sorted.sorted[1].completion, sorted.sorted[2].completion, sorted.sorted[3].completion);
-    ///*
     insertSorted(&sorted, s3);
     printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted.num_completion, sorted.sorted[0].completion, sorted.sorted[1].completion, sorted.sorted[2].completion, sorted.sorted[3].completion);
     insertSorted(&sorted, s4);
     printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted.num_completion, sorted.sorted[0].completion, sorted.sorted[1].completion, sorted.sorted[2].completion, sorted.sorted[3].completion);
-    //*/
     deleteElement(&sorted, s1);
     printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted.num_completion, sorted.sorted[0].completion, sorted.sorted[1].completion, sorted.sorted[2].completion, sorted.sorted[3].completion);
 }
@@ -54,22 +51,21 @@ void debug_test_sorted() {
 int main() {
     //debug_test_sorted();
     init_network();
-    printServerList(blocks[TEMPERATURE_CTRL]);
-    printServerList(blocks[TICKET_BUY]);
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
         clearScreen();
         printf("Prossimo arrivo: %f\n", clock.arrival);
         printf("Clock corrente: %f\n", clock.current);
-        server nextCompletion = global_completions.sorted[0];
+        nextCompletion = &global_completions.sorted[0];
 
-        clock.next = min(nextCompletion.completion, clock.arrival);  // Ottengo il prossimo evento
-        clock.current = clock.next;                                  // Avanzamento del clock al valore del prossimo evento
+        clock.next = min(nextCompletion->completion, clock.arrival);  // Ottengo il prossimo evento
+        clock.current = clock.next;                                   // Avanzamento del clock al valore del prossimo evento
 
         printf("Clock next Event: %f\n", clock.next);
         printServerList(blocks[TEMPERATURE_CTRL]);
         printServerList(blocks[TICKET_BUY]);
+        print_array(global_completions, TOTAL_SERVERS);
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
@@ -78,7 +74,7 @@ int main() {
 
         // Gestione Completamento
         else {
-            process_completion(server_completion);
+            process_completion(nextCompletion);
         }
     }
 }

@@ -124,3 +124,12 @@ char *format_server(server s) {
     sprintf(&formatted,"");
 }
 */
+
+void print_array(sorted_completions *sorted, int num) {
+    printf("List Status: %d | {", sorted->num_completion);
+
+    for (int i = 0; i < num; i++) {
+        printf("%f , ", sorted->sorted[i].completion);
+    }
+    printf("}");
+}
