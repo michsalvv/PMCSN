@@ -2,6 +2,12 @@
 
 #include "config.h"
 
+typedef struct {
+    server sorted[TOTAL_SERVERS];
+    int num_completion;
+    server block_heads[5];
+} sorted_completions;
+
 enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
@@ -56,11 +62,6 @@ void waitInput() {
 void clearScreen() {
     printf("\033[H\033[2J");
 }
-
-typedef struct {
-    server sorted[TOTAL_SERVERS];
-    int num_completion;
-} sorted_completions;
 
 // Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, server key) {
