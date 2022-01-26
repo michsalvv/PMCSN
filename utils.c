@@ -56,3 +56,31 @@ void waitInput() {
 void clearScreen() {
     printf("\033[H\033[2J");
 }
+
+typedef struct {
+    double value;
+    server *server;
+} completion;
+
+typedef struct {
+    completion sorted[TOTAL_SERVERS];
+    int num_completion;
+} sorted_completions;
+
+// Inserts a key in arr[] of given capacity.  n is current
+// size of arr[]. This function returns n+1 if insertion
+// is successful, else n.
+int insertSorted(sorted_completions *compls, completion key) {
+    printf("inserting sorted: %f,%f\n", key.value, key.server);
+
+    int i;
+    int n = compls->num_completion;
+
+    for (i = n - 1; (i >= 0 && (compls->sorted[i].value > key.value)); i--) {
+        compls->sorted[i + 1] = compls->sorted[i];
+    }
+    compls->sorted[i + 1] = key;
+    compls->num_completion++;
+
+    return (n + 1);
+}
