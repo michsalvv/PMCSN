@@ -49,16 +49,88 @@ void debug_test_sorted() {
 }
 */
 
+// struct completion {
+//     double value;
+//     int globalID;
+// } completions[1000];
+
+// int comp(const void *left, const void *right) {
+//     const struct completion *a = (const struct completion *)left;
+//     const struct completion *b = (const struct completion *)right;
+//     if (a->value > b->value) {
+//         return 1;
+//     } else if (a->value < b->value) {
+//         return -1;
+//     } else {
+//         return 0;
+//     }
+// }
+
+int comp(const void *left, const void *right) {
+    server a = (server *)left;
+    server b = (server *)right;
+    if (a->completion > b->completion) {
+        return 1;
+    } else if (a->completion < b->completion) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+// void sort() {
+//     qsort(completions, sizeof(completions) / sizeof(struct completion), sizeof(struct completion), (int (*)(const void *, const void *)) & comp);
+//     printf("-- After sorting\n");
+//     for (int i = 0; i < sizeof(completions) / sizeof(struct completion); i++) {
+//         printf("{%f, %d}\n", completions[i].value, completions[i].globalID);
+//     }
+// }
+server *servers[TOTAL_SERVERS];
+
+void sort(server sorted[TOTAL_SERVERS]) {
+    // qsort(sorted, TOTAL_SERVERS / sizeof(server), sizeof(server), (int (*)(const void *, const void *)) & comp);
+    printf("%ld\n", sizeof(global_completions.sorted));
+    qsort(servers, TOTAL_SERVERS, sizeof(server), (int (*)(const void *, const void *)) & comp);
+}
+
+double drand(double low, double high) {
+    return ((double)rand() * (high - low)) / (double)RAND_MAX + low;
+}
+
+void test() {
+    double rand;
+    for (int i = 0; i < TOTAL_SERVERS; i++) {
+        rand = drand(0.0, 1000.0);
+        global_completions.sorted[i]->completion = rand;
+        // servers[i]->id = i;
+        // servers[i]->completion = rand;
+    }
+
+    // printf("-- Before sorting\n");
+    // for (int i = 0; i < TOTAL_SERVERS; i++) {
+    //     printf("{%f, %d}\n", servers[i].completion, servers[i].id);
+    // }
+
+    // sort(servers);
+
+    // printf("-- After sorting\n");
+    // for (int i = 0; i < TOTAL_SERVERS; i++) {
+    //     printf("{%f, %d}\n", servers[i].completion, servers[i].id);
+    // }
+}
+
 int main() {
     //debug_test_sorted();
     init_network();
+    test();
+    return 1;
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
         clearScreen();
         printf("Prossimo arrivo: %f\n", clock.arrival);
         printf("Clock corrente: %f\n", clock.current);
-        nextCompletion = &global_completions.sorted[0];
+        nextCompletion = global_completions.sorted[0];
 
         clock.next = min(nextCompletion->completion, clock.arrival);  // Ottengo il prossimo evento
         clock.current = clock.next;                                   // Avanzamento del clock al valore del prossimo evento
@@ -167,8 +239,8 @@ void process_arrival() {
         s->completion = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
         print_array(&global_completions, TOTAL_SERVERS);
-        printf("Servente %d libero. Genero il completamento: %f\n", s->id, s->completion);
-        insertSorted(&global_completions, s);
+        // sort(global_completions.sorted);
+        // insertSorted(&global_completions, s);
 
     } else {
         printf("Serventi occupati. Accodo il job nel blocco %d", s->nodeType);

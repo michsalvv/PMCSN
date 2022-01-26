@@ -57,6 +57,7 @@ typedef struct server_t {
     int stream;
     enum node_type nodeType;
     struct server_t *next;
+    int globalID;
 } server;
 
 // Blocco

@@ -1,7 +1,7 @@
 enum node_type getDestination(enum node_type from);
 
 typedef struct {
-    server sorted[TOTAL_SERVERS];
+    server *sorted[TOTAL_SERVERS];
     int num_completion;
     server *block_heads[5];
 } sorted_completions;
