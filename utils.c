@@ -1,9 +1,10 @@
+#include <math.h>
 #include <stdio.h>
 
 #include "config.h"
 
 typedef struct {
-    server sorted[TOTAL_SERVERS];
+    server *sorted[TOTAL_SERVERS];
     int num_completion;
     server *block_heads[5];
 } sorted_completions;
@@ -63,14 +64,30 @@ void clearScreen() {
     printf("\033[H\033[2J");
 }
 
+// Ricerca binaria di un elemento su una lista ordinata
+int binarySearch(sorted_completions *compls, int low, int high, server *key) {
+    if (high < low) {
+        return -1;
+    }
+
+    int mid = (low + high) / 2;
+    if (key->completion == compls->sorted[mid]->completion) {
+        return mid;
+    }
+    if (key->completion > compls->sorted[mid]->completion) {
+        return binarySearch(compls, (mid + 1), high, key);
+    }
+    return binarySearch(compls, low, (mid - 1), key);
+}
+
 // Inserisce un elemento nella lista ordinata
-int insertSorted(sorted_completions *compls, server key) {
-    printf("inserting sorted: %f\n", key.completion);
+int insertSorted(sorted_completions *compls, server *key) {
+    printf("inserting sorted: %f\n", key->completion);
 
     int i;
     int n = compls->num_completion;
 
-    for (i = n - 1; (i >= 0 && (compls->sorted[i].completion > key.completion)); i--) {
+    for (i = n - 1; (i >= 0 && (compls->sorted[i]->completion > key->completion)); i--) {
         compls->sorted[i + 1] = compls->sorted[i];
     }
     compls->sorted[i + 1] = key;
@@ -79,26 +96,10 @@ int insertSorted(sorted_completions *compls, server key) {
     return (n + 1);
 }
 
-// Ricerca binaria di un elemento su una lista ordinata
-int binarySearch(sorted_completions *compls, int low, int high, server key) {
-    if (high < low) {
-        return -1;
-    }
-
-    int mid = (low + high) / 2;
-    if (key.completion == compls->sorted[mid].completion) {
-        return mid;
-    }
-    if (key.completion > compls->sorted[mid].completion) {
-        return binarySearch(compls, (mid + 1), high, key);
-    }
-    return binarySearch(compls, low, (mid - 1), key);
-}
-
 /* Function to delete an element */
-int deleteElement(sorted_completions *compls, server key) {
+int deleteElement(sorted_completions *compls, server *key) {
     // Find position of element to be deleted
-    printf("Deleting Sorted: %f\n", key.completion);
+    printf("Deleting Sorted: %f\n", key->completion);
 
     int n = compls->num_completion;
 
@@ -111,9 +112,13 @@ int deleteElement(sorted_completions *compls, server key) {
 
     // Deleting element
     int i;
+    server *saved = compls->sorted[pos];
     for (i = pos; i < n; i++) {
-        compls->sorted[i].completion = compls->sorted[i + 1].completion;
+        compls->sorted[i] = compls->sorted[i + 1];
     }
+    compls->sorted[n + 1] = saved;
+    compls->sorted[n + 1]->status = IDLE;
+    compls->sorted[n + 1]->completion = INFINITY;
     compls->num_completion--;
 
     return n - 1;
@@ -130,7 +135,7 @@ void print_array(sorted_completions *sorted, int num) {
     printf("List Status: %d | {", sorted->num_completion);
 
     for (int i = 0; i < num; i++) {
-        printf("%f , ", sorted->sorted[i].completion);
+        printf("%f , ", sorted->sorted[i]->completion);
     }
-    printf("}");
+    printf("}\n");
 }
