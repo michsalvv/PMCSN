@@ -178,7 +178,6 @@ void process_completion(server * compl ) {
     switch (compl ->nodeType) {
         case TEMPERATURE_CTRL:;
             struct job j = dequeue(&blocks[TEMPERATURE_CTRL]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
-            deleteElement(&global_completions, *compl );
 
             // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
             if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
@@ -193,13 +192,14 @@ void process_completion(server * compl ) {
             // Gestione blocco destinazione
             enum node_type destination = getDestination(compl ->nodeType);  // Trova la destinazione adatta per il job appena servito
             enqueue(&blocks[destination], compl ->completion);              // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+            deleteElement(&global_completions, *compl );
 
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
             server *freeServer = findFreeServer(global_completions.block_heads[destination]);
             if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
                 freeServer->status = BUSY;
-                insertSorted(&global_completions, *compl );
+                insertSorted(&global_completions, *freeServer);
             } else {
                 blocks[destination].jobInQueue++;
             }
@@ -268,7 +268,8 @@ void init_blocks() {
             default:
                 break;
         }
-
+        // head -> server
+        // sorted -> server
         global_completions.block_heads[block_type] = head;
         server *last = head;
 
