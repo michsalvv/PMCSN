@@ -5,7 +5,7 @@
 typedef struct {
     server sorted[TOTAL_SERVERS];
     int num_completion;
-    server block_heads[5];
+    server *block_heads[5];
 } sorted_completions;
 
 enum node_type getDestination(enum node_type from) {
@@ -38,9 +38,9 @@ server *iterateOver(server *s) {
 }
 
 // Stampa la lista dei server con il relativo stato
-void printServerList(struct node block) {
-    server *current = block.firstServer;
-    printf("\n-- Blocco #%d #jobInQueue: %d--\n", block.type, block.jobInQueue);
+void printServerList(sorted_completions *compls, int block_type, struct node block) {
+    server *current = compls->block_heads[block_type];
+    printf("\n-- Blocco #%d #jobInQueue: %d--\n", block_type, block.jobInQueue);
     while (current != NULL) {
         printf("Server #%d \tStatus: %d\tCompletion: %f\t\t Type: %d\tStream: %d\n", current->id, current->status, current->completion, current->nodeType, current->stream);
         if (current->next == NULL) break;
