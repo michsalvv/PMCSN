@@ -1,10 +1,10 @@
 #define NUM_BLOCKS 5
 
 #define TEMPERATURE_CTRL_SERVERS 3
-#define TICKET_BUY_SERVERS 50
-#define TICKET_GATE_SERVERS 5
-#define SEASON_GATE_SERVERS 5
-#define GREEN_PASS_SERVERS 5
+#define TICKET_BUY_SERVERS 30
+#define TICKET_GATE_SERVERS 10
+#define SEASON_GATE_SERVERS 2
+#define GREEN_PASS_SERVERS 30
 #define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
@@ -52,12 +52,13 @@
         exit(EXIT_FAILURE); \
     } while (0)
 
-enum node_type {
+enum block_types {
     TEMPERATURE_CTRL,
     TICKET_BUY,
     TICKET_GATE,
     SEASON_GATE,
-    GREEN_PASS
+    GREEN_PASS,
+    EXIT
 };
 
 // Struttura che mantiene il clock
@@ -79,12 +80,12 @@ typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
     int stream;
-    enum node_type nodeType;
+    enum block_types nodeType;
     struct server_t *next;
 } server;
 
 // Blocco
-struct node {
+struct block {
     struct job *head;
     struct job *tail;
     struct job in_service;
@@ -94,7 +95,10 @@ struct node {
     // double opening_time;
     double active_time;
     int jobInQueue;
-    enum node_type type;  // forse non serve
+    enum block_types type;  // forse non serve
+
+    int total_arrivals;
+    int total_completions;
 
     int num_server;
     server *firstServer;

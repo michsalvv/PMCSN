@@ -1,21 +1,41 @@
 #include <math.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
+#include "DES/rng.h"
+#include "DES/rvgs.h"
 #include "config.h"
 
+// Fornisce il blocco di destinazione partendo dal blocco del controllo temperatura
+int routing_from_temperature() {
+    double random = Uniform(0, 100);
+    //printf("%f\n", random);
+    if (random < P_EXIT_TEMP) {
+        return EXIT;
+    } else if (random < P_EXIT_TEMP + P_TICKET_BUY) {
+        return TICKET_BUY;
+    } else if (random < P_EXIT_TEMP + P_TICKET_BUY + P_SEASON_GATE) {
+        return SEASON_GATE;
+    } else {
+        return TICKET_GATE;
+    }
+}
+
 // Ritorna il blocco destinazione di un job dopo il completamento
-enum node_type getDestination(enum node_type from) {
+int getDestination(enum block_types from) {
     switch (from) {
         case TEMPERATURE_CTRL:
-            return TICKET_BUY;
+            return routing_from_temperature();
         case SEASON_GATE:
             return GREEN_PASS;
         case TICKET_BUY:
             return TICKET_GATE;
         case TICKET_GATE:
             return GREEN_PASS;
-        default:
             break;
     }
 }
@@ -71,7 +91,7 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
 
 // Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, compl completion) {
-    printf("inserting in sorted list value: {(%d,%d),%f}\n", completion.server->nodeType, completion.server->id, completion.value);
+    printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->nodeType, completion.server->id, completion.value);
 
     int i;
     int n = compls->num_completions;
@@ -88,7 +108,7 @@ int insertSorted(sorted_completions *compls, compl completion) {
 // Function to delete an element
 int deleteElement(sorted_completions *compls, compl completion) {
     // Find position of element to be deleted
-    printf("deleting server_list: %f\n", completion.value);
+    printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->nodeType, completion.server->id, completion.value);
 
     int n = compls->num_completions;
 
@@ -110,11 +130,12 @@ int deleteElement(sorted_completions *compls, compl completion) {
     return n - 1;
 }
 
-void print_completions_status(sorted_completions *compls, int num, struct node blocks[]) {
+void print_completions_status(sorted_completions *compls, int num, struct block blocks[]) {
     printf("\nBusy Servers: %d\n", compls->num_completions);
     printf("Enqueued Job TEMPERATURE: %d\n", blocks[TEMPERATURE_CTRL].jobInQueue);
     printf("Enqueued Job TICKET_BUY : %d\n", blocks[TICKET_BUY].jobInQueue);
     printf("Enqueued Job TICKET_GATE : %d\n", blocks[TICKET_GATE].jobInQueue);
+    printf("Enqueued Job SEASON_GATE : %d\n", blocks[SEASON_GATE].jobInQueue);
     printf("Enqueued Job GREEN_PASS : %d\n", blocks[GREEN_PASS].jobInQueue);
 
     for (int i = 0; i < num; i++) {
@@ -126,12 +147,4 @@ void print_completions_status(sorted_completions *compls, int num, struct node b
 
 double drand(double low, double high) {
     return ((double)rand() * (high - low)) / (double)100 + low;
-}
-
-// Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
-//TODO finire
-bool routing_to(int prob) {
-    double random = drand(0, 100);
-    if (random < P_EXIT_TEMP) {
-    }
 }

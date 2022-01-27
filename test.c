@@ -9,11 +9,11 @@
 #include "utils.h"
 
 double getArrival(double current);
-void enqueue(struct node *block, double arrival);
-struct job dequeue(struct node *block);
+void enqueue(struct block *block, double arrival);
+struct job dequeue(struct block *block);
 server *findFreeServer(server *block_head);
-double findNextEvent(double nextArrival, struct node *services, server **server_completion);
-double getService(enum node_type type, int stream);
+double findNextEvent(double nextArrival, struct block *services, server **server_completion);
+double getService(enum block_types type, int stream);
 void process_arrival();
 void process_completion(compl completion);
 void init_network();
@@ -23,11 +23,37 @@ int streamID;                                  // Stream da selezionare per gene
 server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 
-struct node blocks[NUM_BLOCKS];
+struct block blocks[NUM_BLOCKS];
 struct clock_t clock;
 
+void debug_routing() {
+    int numExit = 0;
+    int numTicketBuy = 0;
+    int numTicketGate = 0;
+    int numSeasonGate = 0;
+
+    for (int i = 0; i < 1000; i++) {
+        int res = routing_from_temperature();
+        if (res == EXIT) {
+            numExit++;
+        }
+        if (res == TICKET_BUY) {
+            numTicketBuy++;
+            printf("%d\n", numTicketBuy);
+        }
+        if (res == TICKET_GATE) {
+            numTicketGate++;
+        }
+        if (res == SEASON_GATE) {
+            numSeasonGate++;
+        }
+    }
+    printf("Exit: %d\nTickBuy: %d\nTickGate: %d\nSeasGate: %d\n", numExit, numTicketBuy, numTicketGate, numSeasonGate);
+    exit(0);
+}
+
 int main() {
-    //debug_test_sorted();
+    PutSeed(65445545454);
     init_network();
 
     // Gestione degli arrivi e dei completamenti
@@ -52,6 +78,7 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
+        //print_completions_status(&global_sorted_completions, global_sorted_completions.num_completions, blocks);
     }
     print_completions_status(&global_sorted_completions, global_sorted_completions.num_completions, blocks);
 }
@@ -63,12 +90,12 @@ int main() {
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Exponential(LAMBDA_1);
+    arrival += Exponential(1 / LAMBDA_1);
     return (arrival);
 }
 
 // Inserisce un job nella coda del blocco specificata
-void enqueue(struct node *block, double arrival) {
+void enqueue(struct block *block, double arrival) {
     struct job *j = (struct job *)malloc(sizeof(struct job));
     if (j == NULL)
         handle_error("malloc");
@@ -85,7 +112,7 @@ void enqueue(struct node *block, double arrival) {
 }
 
 // Ritorna e rimuove il job dalla coda del blocco specificata
-struct job dequeue(struct node *block) {
+struct job dequeue(struct block *block) {
     struct job *j = block->head;
 
     if (!j->next)
@@ -109,7 +136,7 @@ server *findFreeServer(server *block_head) {
 }
 
 // Genera un tempo di servizio secondo la distribuzione specificata e stream del servente individuato
-double getService(enum node_type type, int stream) {
+double getService(enum block_types type, int stream) {
     SelectStream(stream);
     double x;
 
@@ -134,9 +161,11 @@ Processa un arrivo dall'esterno
 */
 void process_arrival() {
     printf("\nProcessamento di un Arrivo\n");
+    blocks[TEMPERATURE_CTRL].total_arrivals++;
+
     server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
 
-    // C'è un servente libero
+    // C'è un servente libero, quindi genero il completamento
     if (s != NULL) {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         compl c = {s, INFINITY};
@@ -148,10 +177,13 @@ void process_arrival() {
     }
     enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
     clock.arrival = getArrival(clock.current);          // Genera prossimo arrivo
+    blocks[TEMPERATURE_CTRL].total_arrivals++;
 }
 
+// Processa un next-event di completamento
 void process_completion(compl c) {
-    enum node_type destination;
+    blocks[c.server->nodeType].total_completions++;
+    int destination;
     server *freeServer;
     printf("\nProcessamento di un Completamento\n");
 
@@ -162,6 +194,8 @@ void process_completion(compl c) {
 
             // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
             if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
+                printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->nodeType, c.server->id);
+
                 blocks[TEMPERATURE_CTRL].jobInQueue--;
                 c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
                 insertSorted(&global_sorted_completions, c);
@@ -169,11 +203,16 @@ void process_completion(compl c) {
                 printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->nodeType, c.server->id);
                 c.server->status = IDLE;
             }
-            printf("Inoltro il job al destinatario\n");
 
             // Gestione blocco destinazione
             destination = getDestination(c.server->nodeType);  // Trova la destinazione adatta per il job appena servito
-            enqueue(&blocks[destination], c.value);            // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+            printf("Inoltro il job al destinatario: %d\n", destination);
+            if (destination == EXIT) {
+                // Il job esce dal sistema
+                break;
+            }
+            blocks[destination].total_arrivals++;
+            enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
             freeServer = findFreeServer(blocks[destination].firstServer);
@@ -199,6 +238,7 @@ void process_completion(compl c) {
             }
 
             destination = getDestination(c.server->nodeType);
+            printf("Inoltro il job al destinatario: %d\n", destination);
             enqueue(&blocks[destination], c.value);
             freeServer = findFreeServer(blocks[destination].firstServer);
             if (freeServer != NULL) {
@@ -223,6 +263,7 @@ void process_completion(compl c) {
             }
 
             destination = getDestination(c.server->nodeType);
+            printf("Inoltro il job al destinatario: %d\n", destination);
             enqueue(&blocks[destination], c.value);
             freeServer = findFreeServer(blocks[destination].firstServer);
             if (freeServer != NULL) {
@@ -247,6 +288,7 @@ void process_completion(compl c) {
             }
 
             destination = getDestination(c.server->nodeType);
+            printf("Inoltro il job al destinatario: %d\n", destination);
             enqueue(&blocks[destination], c.value);
             freeServer = findFreeServer(blocks[destination].firstServer);
             if (freeServer != NULL) {
@@ -280,8 +322,6 @@ void process_completion(compl c) {
 void init_network() {
     printf("Initializing Network\n");
     PlantSeeds(1293829);
-    srand(time(NULL));  // Randomizza la scelta dei numeri per la simulazione della perdita dei pacchetti
-
     streamID = 0;
 
     blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;
@@ -330,6 +370,8 @@ void init_blocks() {
         }
         blocks[block_type].firstServer = head;
         blocks[block_type].type = block_type;
+        blocks[block_type].total_arrivals = 0;
+        blocks[block_type].total_completions = 0;
         server *last = head;
 
         for (int i = 1; i < servers; i++) {
