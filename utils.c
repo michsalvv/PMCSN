@@ -3,12 +3,6 @@
 
 #include "config.h"
 
-typedef struct {
-    server *sorted[TOTAL_SERVERS];
-    int num_completion;
-    server *block_heads[5];
-} sorted_completions;
-
 enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
@@ -38,8 +32,10 @@ server *iterateOver(server *s) {
     return current;
 }
 
+//TODO rifare stampando solo i completions
 // Stampa la lista dei server con il relativo stato
-void printServerList(sorted_completions *compls, int block_type, struct node block) {
+/*
+void printServerList(network_status *compls, int block_type, struct node block) {
     server *current = compls->block_heads[block_type];
     printf("\n-- Blocco #%d #jobInQueue: %d--\n", block_type, block.jobInQueue);
     while (current != NULL) {
@@ -48,6 +44,7 @@ void printServerList(sorted_completions *compls, int block_type, struct node blo
         current = current->next;
     }
 }
+*/
 
 /*
 ** Mette in pausa il programma aspettando l'input utente
@@ -65,45 +62,45 @@ void clearScreen() {
 }
 
 // Ricerca binaria di un elemento su una lista ordinata
-int binarySearch(sorted_completions *compls, int low, int high, server *key) {
+int binarySearch(sorted_completions *compls, int low, int high, compl completion) {
     if (high < low) {
         return -1;
     }
 
     int mid = (low + high) / 2;
-    if (key->completion == compls->sorted[mid]->completion) {
+    if (completion.value == compls->sorted_list[mid].value) {
         return mid;
     }
-    if (key->completion > compls->sorted[mid]->completion) {
-        return binarySearch(compls, (mid + 1), high, key);
+    if (completion.value == compls->sorted_list[mid].value) {
+        return binarySearch(compls, (mid + 1), high, completion);
     }
-    return binarySearch(compls, low, (mid - 1), key);
+    return binarySearch(compls, low, (mid - 1), completion);
 }
 
 // Inserisce un elemento nella lista ordinata
-int insertSorted(sorted_completions *compls, server *key) {
-    printf("inserting sorted: %f\n", key->completion);
+int insertSorted(sorted_completions *compls, compl completion) {
+    printf("inserting in sorted list value: {(%d,%d),%f}\n", completion.server->nodeType, completion.server->id, completion.value);
 
     int i;
-    int n = compls->num_completion;
+    int n = compls->num_completions;
 
-    for (i = n - 1; (i >= 0 && (compls->sorted[i]->completion > key->completion)); i--) {
-        compls->sorted[i + 1] = compls->sorted[i];
+    for (i = n - 1; (i >= 0 && (compls->sorted_list[i].value > completion.value)); i--) {
+        compls->sorted_list[i + 1] = compls->sorted_list[i];
     }
-    compls->sorted[i + 1] = key;
-    compls->num_completion++;
+    compls->sorted_list[i + 1] = completion;
+    compls->num_completions++;
 
     return (n + 1);
 }
 
 /* Function to delete an element */
-int deleteElement(sorted_completions *compls, server *key) {
+int deleteElement(sorted_completions *compls, compl completion) {
     // Find position of element to be deleted
-    printf("Deleting Sorted: %f\n", key->completion);
+    printf("deleting server_list: %f\n", completion.value);
 
-    int n = compls->num_completion;
+    int n = compls->num_completions;
 
-    int pos = binarySearch(compls, 0, n - 1, key);
+    int pos = binarySearch(compls, 0, n - 1, completion);
 
     if (pos == -1) {
         printf("Element not found");
@@ -112,14 +109,10 @@ int deleteElement(sorted_completions *compls, server *key) {
 
     // Deleting element
     int i;
-    server *saved = compls->sorted[pos];
     for (i = pos; i < n; i++) {
-        compls->sorted[i] = compls->sorted[i + 1];
+        compls->sorted_list[i] = compls->sorted_list[i + 1];
     }
-    compls->sorted[n + 1] = saved;
-    compls->sorted[n + 1]->status = IDLE;
-    compls->sorted[n + 1]->completion = INFINITY;
-    compls->num_completion--;
+    compls->num_completions--;
 
     return n - 1;
 }
@@ -131,11 +124,11 @@ char *format_server(server s) {
 }
 */
 
-void print_array(sorted_completions *sorted, int num) {
-    printf("List Status: %d | {", sorted->num_completion);
+void print_array(sorted_completions *compls, int num) {
+    printf("List Status: %d | {", compls->num_completions);
 
     for (int i = 0; i < num; i++) {
-        printf("%f , ", sorted->sorted[i]->completion);
+        printf("%f , ", compls->sorted_list[i].value);
     }
     printf("}\n");
 }

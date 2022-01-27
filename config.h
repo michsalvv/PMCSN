@@ -50,15 +50,14 @@ struct job {
 };
 
 // Servente
+// TODO: nota: ho tolto il completamento. Ogni struttura completamento punta ad un servente
 typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
-    double completion;
     int stream;
     enum node_type nodeType;
     struct server_t *next;
     int globalID;
-    struct completion *pCompletion;
 } server;
 
 // Blocco
@@ -77,3 +76,18 @@ struct node {
     int num_server;
     server *firstServer;
 };
+
+typedef struct {
+    server *server_list[TOTAL_SERVERS];
+    server *block_heads[5];
+} network_status;
+
+typedef struct {
+    server *server;
+    double value;
+} compl ;
+
+typedef struct {
+    compl sorted_list[TOTAL_SERVERS];
+    int num_completions;
+} sorted_completions;
