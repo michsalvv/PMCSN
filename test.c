@@ -8,8 +8,6 @@
 #include "math.h"
 #include "utils.h"
 
-//TODO aggiustare gli InsertSorted dopo i GetService
-
 double getArrival(double current);
 void enqueue(struct node *block, double arrival);
 struct job dequeue(struct node *block);
@@ -27,27 +25,6 @@ sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tu
 
 struct node blocks[NUM_BLOCKS];
 struct clock_t clock;
-
-void debug_test_sorted() {
-    compl s1 = {0, 5.231};
-    compl s2 = {0, 1.231};
-    compl s3 = {0, 56.231};
-    compl s4 = {0, 15.231};
-
-    sorted_completions sorted_compls;
-
-    clearScreen();
-    insertSorted(&sorted_compls, s1);
-    printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted_compls.num_completions, sorted_compls.sorted_list[0].value, sorted_compls.sorted_list[1].value, sorted_compls.sorted_list[2].value, sorted_compls.sorted_list[3].value);
-    insertSorted(&sorted_compls, s2);
-    printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted_compls.num_completions, sorted_compls.sorted_list[0].value, sorted_compls.sorted_list[1].value, sorted_compls.sorted_list[2].value, sorted_compls.sorted_list[3].value);
-    insertSorted(&sorted_compls, s3);
-    printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted_compls.num_completions, sorted_compls.sorted_list[0].value, sorted_compls.sorted_list[1].value, sorted_compls.sorted_list[2].value, sorted_compls.sorted_list[3].value);
-    insertSorted(&sorted_compls, s4);
-    printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted_compls.num_completions, sorted_compls.sorted_list[0].value, sorted_compls.sorted_list[1].value, sorted_compls.sorted_list[2].value, sorted_compls.sorted_list[3].value);
-    deleteElement(&sorted_compls, s1);
-    printf("List Status: %d | {%f , %f , %f , %f}\n\n", sorted_compls.num_completions, sorted_compls.sorted_list[0].value, sorted_compls.sorted_list[1].value, sorted_compls.sorted_list[2].value, sorted_compls.sorted_list[3].value);
-}
 
 int main() {
     //debug_test_sorted();
@@ -81,12 +58,12 @@ int main() {
 
 /*
 * Genera un tempo di Arrivo secondo la distribuzione specificata
-* TODO gestire le fascie orarie
+* //TODO gestire le fascie orarie
 */
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Exponential(0.346153833);
+    arrival += Exponential(LAMBDA_1);
     return (arrival);
 }
 
@@ -228,6 +205,7 @@ void process_completion(compl c) {
 void init_network() {
     printf("Initializing Network\n");
     PlantSeeds(1293829);
+    srand(time(NULL));  // Randomizza la scelta dei numeri per la simulazione della perdita dei pacchetti
 
     streamID = 0;
 
@@ -246,7 +224,6 @@ void init_network() {
 // Inizializza tutti i serventi di tutti i blocchi della rete
 void init_blocks() {
     printf("Initilizing servers\n");
-    int globalID = 0;
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         printf("%d, %d\n", block_type, NUM_BLOCKS);
         int servers;
