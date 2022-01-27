@@ -1,10 +1,11 @@
+#define NUM_BLOCKS 5
+
 #define TEMPERATURE_CTRL_SERVERS 3
 #define TICKET_BUY_SERVERS 50
 #define TICKET_GATE_SERVERS 5
 #define SEASON_GATE_SERVERS 5
 #define GREEN_PASS_SERVERS 5
-#define TOTAL_SERVERS 68
-//#define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
+#define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
 #define STOP 10800.0  // Configurazone per prima fascia
@@ -28,20 +29,12 @@ enum node_type {
     GREEN_PASS
 };
 
-#define NUM_BLOCKS 5
-
 // Struttura che mantiene il clock
 struct clock_t {
     double current;  // Tempo attuale di simulazione
     double next;     // Tempo attuale del prossimo evento, sia arrivo che completamento
     double arrival;  // Tempo attuale del prossimo arrivo
 };
-
-// Struttura che mantiene la somma accumulata
-// struct {
-//     double service;  // Tempi di servizio
-//     long served;     // Numero di job serviti
-// } sum[SERVERS + 1];
 
 // Struttura che mantiene un job. Il puntatore *next implementa la Linked List
 struct job {
@@ -57,7 +50,6 @@ typedef struct server_t {
     int stream;
     enum node_type nodeType;
     struct server_t *next;
-    int globalID;
 } server;
 
 // Blocco
@@ -77,17 +69,20 @@ struct node {
     server *firstServer;
 };
 
-typedef struct {
-    server *server_list[TOTAL_SERVERS];
-    server *block_heads[5];
-} network_status;
-
+// Struttura che mantiene un completamento su un server
 typedef struct {
     server *server;
     double value;
 } compl ;
 
+// Struttura che mantiene la lista ordinata del numero di completamenti
 typedef struct {
     compl sorted_list[TOTAL_SERVERS];
     int num_completions;
 } sorted_completions;
+
+// Struttura che mantiene la somma accumulata
+// struct {
+//     double service;  // Tempi di servizio
+//     long served;     // Numero di job serviti
+// } sum[SERVERS + 1];

@@ -17,13 +17,12 @@ server *findFreeServer(server *block_head);
 double findNextEvent(double nextArrival, struct node *services, server **server_completion);
 double getService(enum node_type type, int stream);
 void process_arrival();
-void process_completion(compl *compl );
+void process_completion(compl completion);
 void init_network();
 void init_blocks();
 
 int streamID;                                  // Stream da selezionare per generare il tempo di servizio
 server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
-network_status global_network_status;          // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 
 struct node blocks[NUM_BLOCKS];
@@ -74,13 +73,10 @@ int main() {
 
         // Gestione Completamento
         else {
-            process_completion(nextCompletion);
+            process_completion(*nextCompletion);
         }
-
-        //printServerList(&global_network_status, TEMPERATURE_CTRL, blocks[TEMPERATURE_CTRL]);
-        //printServerList(&global_network_status, TICKET_BUY, blocks[TICKET_BUY]);
-        print_array(&global_sorted_completions, TOTAL_SERVERS);
     }
+    print_completions_status(&global_sorted_completions, global_sorted_completions.num_completions, blocks);
 }
 
 /*
@@ -161,7 +157,7 @@ Processa un arrivo dall'esterno
 */
 void process_arrival() {
     printf("\nProcessamento di un Arrivo\n");
-    server *s = findFreeServer(global_network_status.block_heads[TEMPERATURE_CTRL]);
+    server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
 
     // C'è un servente libero
     if (s != NULL) {
@@ -169,6 +165,7 @@ void process_arrival() {
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
+        insertSorted(&global_sorted_completions, c);
     } else {
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
@@ -176,29 +173,31 @@ void process_arrival() {
     clock.arrival = getArrival(clock.current);          // Genera prossimo arrivo
 }
 
-void process_completion(compl *c) {
+void process_completion(compl c) {
     printf("\nProcessamento di un Completamento\n");
 
-    switch (c->server->nodeType) {
+    switch (c.server->nodeType) {
         case TEMPERATURE_CTRL:;
             struct job j = dequeue(&blocks[TEMPERATURE_CTRL]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
+            deleteElement(&global_sorted_completions, c);
 
             // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
             if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
                 blocks[TEMPERATURE_CTRL].jobInQueue--;
-                c->value = clock.current + getService(TEMPERATURE_CTRL, c->server->stream);
+                c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
+                insertSorted(&global_sorted_completions, c);
             } else {
-                printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c->server->nodeType, c->server->id);
-                c->value = INFINITY;
-                c->server->status = IDLE;
+                printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->nodeType, c.server->id);
+                c.server->status = IDLE;
             }
-
             printf("Inoltro il job al destinatario\n");
+
             // Gestione blocco destinazione
-            enum node_type destination = getDestination(c->server->nodeType);  // Trova la destinazione adatta per il job appena servito
-            enqueue(&blocks[destination], c->value);                           // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+            enum node_type destination = getDestination(c.server->nodeType);  // Trova la destinazione adatta per il job appena servito
+            enqueue(&blocks[destination], c.value);                           // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
-            server *freeServer = findFreeServer(global_network_status.block_heads[destination]);
+            server *freeServer = findFreeServer(blocks[destination].firstServer);
             if (freeServer != NULL) {
                 compl c2 = {freeServer, INFINITY};
                 c2.value = clock.current + getService(destination, freeServer->stream);
@@ -211,13 +210,13 @@ void process_completion(compl *c) {
 
         case TICKET_BUY:
             dequeue(&blocks[TICKET_BUY]);
+            deleteElement(&global_sorted_completions, c);
             if (blocks[TICKET_BUY].jobInQueue > 0) {
                 blocks[TICKET_BUY].jobInQueue--;
-                c->value = clock.current + getService(TICKET_BUY, c->server->stream);
-                insertSorted(&global_sorted_completions, *c);
+                c.value = clock.current + getService(TICKET_BUY, c.server->stream);
+                insertSorted(&global_sorted_completions, c);
             } else {
-                c->value = INFINITY;
-                c->server->status = IDLE;
+                c.server->status = IDLE;
             }
             break;
         default:
@@ -228,6 +227,8 @@ void process_completion(compl *c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     printf("Initializing Network\n");
+    PlantSeeds(1293829);
+
     streamID = 0;
 
     blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;
@@ -240,7 +241,6 @@ void init_network() {
     clock.current = START;
     clock.arrival = getArrival(clock.current);
     global_sorted_completions.num_completions = 0;
-    print_array(&global_sorted_completions, TOTAL_SERVERS);
 }
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
@@ -276,7 +276,7 @@ void init_blocks() {
             default:
                 break;
         }
-        global_network_status.block_heads[block_type] = head;
+        blocks[block_type].firstServer = head;
         server *last = head;
 
         for (int i = 1; i < servers; i++) {

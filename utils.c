@@ -3,6 +3,7 @@
 
 #include "config.h"
 
+// Ritorna il blocco destinazione di un job dopo il completamento
 enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
@@ -32,20 +33,6 @@ server *iterateOver(server *s) {
     return current;
 }
 
-//TODO rifare stampando solo i completions
-// Stampa la lista dei server con il relativo stato
-/*
-void printServerList(network_status *compls, int block_type, struct node block) {
-    server *current = compls->block_heads[block_type];
-    printf("\n-- Blocco #%d #jobInQueue: %d--\n", block_type, block.jobInQueue);
-    while (current != NULL) {
-        printf("Server #%d \tStatus: %d\tCompletion: %f\t\t Type: %d\tStream: %d\n", current->id, current->status, current->completion, current->nodeType, current->stream);
-        if (current->next == NULL) break;
-        current = current->next;
-    }
-}
-*/
-
 /*
 ** Mette in pausa il programma aspettando l'input utente
 */
@@ -57,6 +44,7 @@ void waitInput() {
         ;
 }
 
+// Pulisce lo schermo
 void clearScreen() {
     printf("\033[H\033[2J");
 }
@@ -93,7 +81,7 @@ int insertSorted(sorted_completions *compls, compl completion) {
     return (n + 1);
 }
 
-/* Function to delete an element */
+// Function to delete an element
 int deleteElement(sorted_completions *compls, compl completion) {
     // Find position of element to be deleted
     printf("deleting server_list: %f\n", completion.value);
@@ -112,23 +100,20 @@ int deleteElement(sorted_completions *compls, compl completion) {
     for (i = pos; i < n; i++) {
         compls->sorted_list[i] = compls->sorted_list[i + 1];
     }
+    compls->sorted_list[n - 1].value = INFINITY;
     compls->num_completions--;
 
     return n - 1;
 }
 
-/*
-char *format_server(server s) {
-    char formatted[256];
-    sprintf(&formatted,"");
-}
-*/
-
-void print_array(sorted_completions *compls, int num) {
-    printf("List Status: %d | {", compls->num_completions);
+void print_completions_status(sorted_completions *compls, int num, struct node blocks[]) {
+    printf("\nBusy Servers: %d\n", compls->num_completions);
+    printf("Enqueued Job TEMPERATURE: %d\n", blocks[TEMPERATURE_CTRL].jobInQueue);
+    printf("Enqueued Job TICKET_BUY : %d\n", blocks[TICKET_BUY].jobInQueue);
 
     for (int i = 0; i < num; i++) {
-        printf("%f , ", compls->sorted_list[i].value);
+        compl actual = compls->sorted_list[i];
+        printf("(%d,%d)  %d  %f\n", actual.server->nodeType, actual.server->id, actual.server->status, actual.value);
     }
-    printf("}\n");
+    printf("\n");
 }
