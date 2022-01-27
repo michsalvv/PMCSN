@@ -9,8 +9,12 @@ enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
             return TICKET_BUY;
-            break;
-
+        case SEASON_GATE:
+            return GREEN_PASS;
+        case TICKET_BUY:
+            return TICKET_GATE;
+        case TICKET_GATE:
+            return GREEN_PASS;
         default:
             break;
     }
@@ -110,6 +114,8 @@ void print_completions_status(sorted_completions *compls, int num, struct node b
     printf("\nBusy Servers: %d\n", compls->num_completions);
     printf("Enqueued Job TEMPERATURE: %d\n", blocks[TEMPERATURE_CTRL].jobInQueue);
     printf("Enqueued Job TICKET_BUY : %d\n", blocks[TICKET_BUY].jobInQueue);
+    printf("Enqueued Job TICKET_GATE : %d\n", blocks[TICKET_GATE].jobInQueue);
+    printf("Enqueued Job GREEN_PASS : %d\n", blocks[GREEN_PASS].jobInQueue);
 
     for (int i = 0; i < num; i++) {
         compl actual = compls->sorted_list[i];

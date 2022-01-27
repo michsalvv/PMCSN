@@ -119,9 +119,9 @@ double getService(enum node_type type, int stream) {
         case TICKET_BUY:
             return Exponential(18);
         case TICKET_GATE:
-            return Exponential(0.7);
+            return Exponential(4);
         case GREEN_PASS:
-            return Exponential(1);
+            return Exponential(10);
         case SEASON_GATE:
             return Exponential(3);
         default:
@@ -151,6 +151,8 @@ void process_arrival() {
 }
 
 void process_completion(compl c) {
+    enum node_type destination;
+    server *freeServer;
     printf("\nProcessamento di un Completamento\n");
 
     switch (c.server->nodeType) {
@@ -170,11 +172,11 @@ void process_completion(compl c) {
             printf("Inoltro il job al destinatario\n");
 
             // Gestione blocco destinazione
-            enum node_type destination = getDestination(c.server->nodeType);  // Trova la destinazione adatta per il job appena servito
-            enqueue(&blocks[destination], c.value);                           // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+            destination = getDestination(c.server->nodeType);  // Trova la destinazione adatta per il job appena servito
+            enqueue(&blocks[destination], c.value);            // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
             // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
-            server *freeServer = findFreeServer(blocks[destination].firstServer);
+            freeServer = findFreeServer(blocks[destination].firstServer);
             if (freeServer != NULL) {
                 compl c2 = {freeServer, INFINITY};
                 c2.value = clock.current + getService(destination, freeServer->stream);
@@ -195,7 +197,80 @@ void process_completion(compl c) {
             } else {
                 c.server->status = IDLE;
             }
+
+            destination = getDestination(c.server->nodeType);
+            enqueue(&blocks[destination], c.value);
+            freeServer = findFreeServer(blocks[destination].firstServer);
+            if (freeServer != NULL) {
+                compl c2 = {freeServer, INFINITY};
+                c2.value = clock.current + getService(destination, freeServer->stream);
+                insertSorted(&global_sorted_completions, c2);
+                freeServer->status = BUSY;
+            } else {
+                blocks[destination].jobInQueue++;
+            }
             break;
+
+        case SEASON_GATE:
+            dequeue(&blocks[SEASON_GATE]);
+            deleteElement(&global_sorted_completions, c);
+            if (blocks[SEASON_GATE].jobInQueue > 0) {
+                blocks[SEASON_GATE].jobInQueue--;
+                c.value = clock.current + getService(SEASON_GATE, c.server->stream);
+                insertSorted(&global_sorted_completions, c);
+            } else {
+                c.server->status = IDLE;
+            }
+
+            destination = getDestination(c.server->nodeType);
+            enqueue(&blocks[destination], c.value);
+            freeServer = findFreeServer(blocks[destination].firstServer);
+            if (freeServer != NULL) {
+                compl c2 = {freeServer, INFINITY};
+                c2.value = clock.current + getService(destination, freeServer->stream);
+                insertSorted(&global_sorted_completions, c2);
+                freeServer->status = BUSY;
+            } else {
+                blocks[destination].jobInQueue++;
+            }
+            break;
+
+        case TICKET_GATE:
+            dequeue(&blocks[TICKET_GATE]);
+            deleteElement(&global_sorted_completions, c);
+            if (blocks[TICKET_GATE].jobInQueue > 0) {
+                blocks[TICKET_GATE].jobInQueue--;
+                c.value = clock.current + getService(TICKET_GATE, c.server->stream);
+                insertSorted(&global_sorted_completions, c);
+            } else {
+                c.server->status = IDLE;
+            }
+
+            destination = getDestination(c.server->nodeType);
+            enqueue(&blocks[destination], c.value);
+            freeServer = findFreeServer(blocks[destination].firstServer);
+            if (freeServer != NULL) {
+                compl c2 = {freeServer, INFINITY};
+                c2.value = clock.current + getService(destination, freeServer->stream);
+                insertSorted(&global_sorted_completions, c2);
+                freeServer->status = BUSY;
+            } else {
+                blocks[destination].jobInQueue++;
+            }
+            break;
+
+        case GREEN_PASS:
+            dequeue(&blocks[GREEN_PASS]);
+            deleteElement(&global_sorted_completions, c);
+            if (blocks[GREEN_PASS].jobInQueue > 0) {
+                blocks[GREEN_PASS].jobInQueue--;
+                c.value = clock.current + getService(GREEN_PASS, c.server->stream);
+                insertSorted(&global_sorted_completions, c);
+            } else {
+                c.server->status = IDLE;
+            }
+            break;
+
         default:
             break;
     }
@@ -254,6 +329,7 @@ void init_blocks() {
                 break;
         }
         blocks[block_type].firstServer = head;
+        blocks[block_type].type = block_type;
         server *last = head;
 
         for (int i = 1; i < servers; i++) {
