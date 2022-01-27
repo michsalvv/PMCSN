@@ -69,8 +69,11 @@ int main() {
         printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block_type, nextCompletion->server->id, nextCompletion->value);
 
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
-        clock.current = clock.next;                              // Avanzamento del clock al valore del prossimo evento
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            blocks[i].area += (clock.next - clock.current) * blocks[i].jobInBlock;
+        }
 
+        clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
         printf("Clock next Event: %f\n", clock.next);
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
@@ -82,9 +85,14 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+        // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
-    print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        // printf("\navg wait for block #%d........... = %6.2f\n", i, blocks[i].area / blocks[i].total_arrivals);
+        printf("avg  # in queue in block #%d........... = %6.2f\n", i, blocks[i].area / clock.current);
+    }
 }
 
 /*
@@ -165,6 +173,7 @@ Processa un arrivo dall'esterno
 void process_arrival() {
     printf("\nProcessamento di un Arrivo dall'esterno\n");
     blocks[TEMPERATURE_CTRL].total_arrivals++;
+    blocks[TEMPERATURE_CTRL].jobInBlock++;
 
     server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
 
@@ -177,7 +186,7 @@ void process_arrival() {
         s->status = BUSY;  // Setto stato busy
         insertSorted(&global_sorted_completions, c);
     } else {
-        printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato");
+        printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
     enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
@@ -188,6 +197,7 @@ void process_arrival() {
 void process_completion(compl c) {
     int block_type = c.server->block_type;
     blocks[block_type].total_completions++;
+    blocks[block_type].jobInBlock--;
 
     int destination;
     server *freeServer;
@@ -201,7 +211,7 @@ void process_completion(compl c) {
         printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block_type, c.server->id);
 
         blocks[block_type].jobInQueue--;
-        c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
+        c.value = clock.current + getService(block_type, c.server->stream);
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block_type, c.server->id);
@@ -223,6 +233,7 @@ void process_completion(compl c) {
         return;
     }
     blocks[destination].total_arrivals++;
+    blocks[destination].jobInBlock++;
     enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
     // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda

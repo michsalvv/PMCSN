@@ -91,10 +91,11 @@ struct block {
     struct job in_service;
     struct job *head_second;
     struct job *tail_second;
-    // struct area area;
+    double area;
     // double opening_time;
     double active_time;
     int jobInQueue;
+    int jobInBlock;
     enum block_types type;  // forse non serve
 
     int total_arrivals;
@@ -121,3 +122,9 @@ typedef struct {
 //     double service;  // Tempi di servizio
 //     long served;     // Numero di job serviti
 // } sum[SERVERS + 1];
+
+// struct area {
+//     double node;    /* time integrated number in the node  */
+//     double queue;   /* time integrated number in the queue */
+//     double service; /* time integrated number in service */
+// };
