@@ -58,6 +58,7 @@ typedef struct server_t {
     enum node_type nodeType;
     struct server_t *next;
     int globalID;
+    struct completion *pCompletion;
 } server;
 
 // Blocco
