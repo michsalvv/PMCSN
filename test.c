@@ -54,6 +54,8 @@ struct completion {
     int globalID;
 } completions[TOTAL_SERVERS];
 
+int iDs[TOTAL_SERVERS];
+
 int comp(const void *left, const void *right) {
     const struct completion *a = (const struct completion *)left;
     const struct completion *b = (const struct completion *)right;
@@ -66,20 +68,23 @@ int comp(const void *left, const void *right) {
     }
 }
 
-// int comp(const void *left, const void *right) {
-//     server *a = (server *)left;
-//     server *b = (server *)right;
-//     if (a->completion > b->completion) {
-//         return 1;
-//     } else if (a->completion < b->completion) {
-//         return -1;
-//     } else {
-//         return 0;
-//     }
-// }
+int comp_2(const void *left, const void *right) {
+    int *a = (int *)left;
+    int *b = (int *)right;
+    if (global_completions.sorted[*a]->completion > global_completions.sorted[*b]->completion) {
+        // printf("%f - %f\n", global_completions.sorted[*a]->completion, global_completions.sorted[*b]->completion);
+        return 1;
+    } else if (global_completions.sorted[*a] < global_completions.sorted[*b]) {
+        // printf("%f - %f\n", global_completions.sorted[*a]->completion, global_completions.sorted[*b]->completion);
+        return -1;
+    } else {
+        return 0;
+    }
+}
 
 void sort() {
-    qsort(completions, sizeof(completions) / sizeof(struct completion), sizeof(struct completion), (int (*)(const void *, const void *)) & comp);
+    // qsort(completions, sizeof(completions) / sizeof(struct completion), sizeof(struct completion), (int (*)(const void *, const void *)) & comp);
+    qsort(iDs, TOTAL_SERVERS, sizeof(int), (int (*)(const void *, const void *)) & comp_2);
     // printf("-- After sorting\n");
     // for (int i = 0; i < sizeof(completions) / sizeof(struct completion); i++) {
     //     printf("{%f, %d}\n", completions[i].value, completions[i].globalID);
@@ -100,29 +105,30 @@ double drand(double low, double high) {
 void test() {
     double rand;
     for (int i = 0; i < TOTAL_SERVERS; i++) {
-        rand = drand(0.0, 1000.0);
-        global_completions.sorted[i]->completion = rand;
+        // rand = drand(0.0, 1000.0);
+        // global_completions.sorted[i]->completion = rand;
+        iDs[i] = i;
         // servers[i]->id = i;
         // servers[i]->completion = rand;
     }
 
     // printf("-- Before sorting\n");
     // for (int i = 0; i < TOTAL_SERVERS; i++) {
-    //     printf("{%f, %d}\n", servers[i].completion, servers[i].id);
+    //     printf("{%d, %f}\n", iDs[i], global_completions.sorted[iDs[i]]->completion);
     // }
 
-    // sort(servers);
+    // sort();
 
     // printf("-- After sorting\n");
     // for (int i = 0; i < TOTAL_SERVERS; i++) {
-    //     printf("{%f, %d}\n", servers[i].completion, servers[i].id);
+    //     printf("{%d, %f}\n", iDs[i], global_completions.sorted[iDs[i]]->completion);
     // }
 }
 
 int main() {
     //debug_test_sorted();
     init_network();
-    // test();
+    test();
     // return 1;
 
     // Gestione degli arrivi e dei completamenti
@@ -131,7 +137,7 @@ int main() {
         printf("Prossimo arrivo: %f\n", clock.arrival);
         printf("Clock corrente: %f\n", clock.current);
         // nextCompletion = global_completions.sorted[0];
-        nextCompletion = global_completions.sorted[completions[0].globalID];
+        nextCompletion = global_completions.sorted[iDs[0]];
 
         clock.next = min(nextCompletion->completion, clock.arrival);  // Ottengo il prossimo evento
         clock.current = clock.next;                                   // Avanzamento del clock al valore del prossimo evento
@@ -239,7 +245,6 @@ void process_arrival() {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         s->completion = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
-        s->pCompletion->value = s->completion;
         sort();
         // print_array(&global_completions, TOTAL_SERVERS);
         // sort(global_completions.sorted);
@@ -262,13 +267,13 @@ void process_completion(server * compl ) {
             if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
                 blocks[TEMPERATURE_CTRL].jobInQueue--;
                 compl ->completion = clock.current + getService(TEMPERATURE_CTRL, compl ->stream);
-                compl ->pCompletion->value = compl ->completion;
+                // compl ->pCompletion->value = compl ->completion;
                 sort();
             } else {
                 printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", compl ->nodeType, compl ->id);
                 compl ->completion = INFINITY;
                 compl ->status = IDLE;
-                compl ->pCompletion->value = INFINITY;
+                // compl ->pCompletion->value = INFINITY;
                 sort();
             }
 
@@ -281,10 +286,9 @@ void process_completion(server * compl ) {
             if (freeServer != NULL) {
                 freeServer->completion = clock.current + getService(destination, freeServer->stream);
                 freeServer->status = BUSY;
-                freeServer->pCompletion->value = freeServer->completion;
+                // freeServer->pCompletion->value = freeServer->completion;
                 sort();
             } else {
-                printf("Serventi occupati. Accodo il Job nel blocco: %d\n", freeServer->nodeType);
                 blocks[destination].jobInQueue++;
             }
             break;
@@ -295,12 +299,12 @@ void process_completion(server * compl ) {
                 blocks[TICKET_BUY].jobInQueue--;
                 compl ->completion = clock.current + getService(TICKET_BUY, compl ->stream);
                 // insertSorted(&global_completions, compl );
-                compl ->pCompletion->value = compl ->completion;
+                // compl ->pCompletion->value = compl ->completion;
                 sort();
             } else {
                 compl ->completion = INFINITY;
                 compl ->status = IDLE;
-                compl ->pCompletion->value = INFINITY;
+                // compl ->pCompletion->value = INFINITY;
                 sort();
             }
             break;
@@ -337,9 +341,10 @@ void init_blocks() {
         head->completion = INFINITY;
         head->stream = streamID++;
         head->globalID = globalID;
-        head->pCompletion = &completions[globalID];
-        completions[globalID].value = INFINITY;
-        completions[globalID].globalID = globalID;
+        // head->pCompletion = &completions[globalID];
+        // completions[globalID].value = INFINITY;
+        // completions[globalID].globalID = globalID;
+        // iDs[0] = globalID;
         globalID++;  // Non aggroppare nella linea sopra sennò scoppia non so perchè
 
         switch (block_type) {
@@ -375,11 +380,13 @@ void init_blocks() {
             s->stream = streamID++;
             s->globalID = globalID;
             s->pCompletion = &completions[globalID];
-            completions[globalID].value = INFINITY;
-            completions[globalID].globalID = globalID;
+            // iDs[i] = globalID;
+            // completions[globalID].value = INFINITY;
+            // completions[globalID].globalID = globalID;
             globalID++;  // Non aggroppare nella linea sopra sennò scoppia non so perchè
             last->next = s;
             insertSorted(&global_completions, last);
+            // sorted[i]
             last = s;
         }
         insertSorted(&global_completions, last);
