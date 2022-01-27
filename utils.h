@@ -8,4 +8,4 @@ void clearScreen();
 int binarySearch(sorted_completions *compls, int low, int high, compl completion);
 int insertSorted(sorted_completions *compls, compl completion);
 int deleteElement(sorted_completions *compls, compl completion);
-void print_completions_status(sorted_completions *server_list, int num, struct block blocks[]);
+void print_completions_status(sorted_completions *server_list, struct block blocks[], int dropped, int completions);

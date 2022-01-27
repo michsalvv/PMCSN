@@ -23,6 +23,9 @@ int streamID;                                  // Stream da selezionare per gene
 server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 
+int completed = 0;
+int dropped = 0;
+
 struct block blocks[NUM_BLOCKS];
 struct clock_t clock;
 
@@ -78,9 +81,9 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        //print_completions_status(&global_sorted_completions, global_sorted_completions.num_completions, blocks);
+        //print_completions_status(&global_sorted_completions,blocks, dropped, completed);
     }
-    print_completions_status(&global_sorted_completions, global_sorted_completions.num_completions, blocks);
+    print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 }
 
 /*
@@ -138,19 +141,18 @@ server *findFreeServer(server *block_head) {
 // Genera un tempo di servizio secondo la distribuzione specificata e stream del servente individuato
 double getService(enum block_types type, int stream) {
     SelectStream(stream);
-    double x;
 
     switch (type) {
         case TEMPERATURE_CTRL:
-            return Exponential(0.9);
+            return Exponential(SERV_TEMPERATURE_CTRL);
         case TICKET_BUY:
-            return Exponential(18);
+            return Exponential(SERV_TICKET_BUY);
         case TICKET_GATE:
-            return Exponential(4);
-        case GREEN_PASS:
-            return Exponential(10);
+            return Exponential(SERV_TICKET_GATE);
         case SEASON_GATE:
-            return Exponential(3);
+            return Exponential(SERV_SEASON_GATE);
+        case GREEN_PASS:
+            return Exponential(SERV_GREEN_PASS);
         default:
             return 0;
     }
@@ -160,161 +162,77 @@ double getService(enum block_types type, int stream) {
 Processa un arrivo dall'esterno
 */
 void process_arrival() {
-    printf("\nProcessamento di un Arrivo\n");
+    printf("\nProcessamento di un Arrivo dall'esterno\n");
     blocks[TEMPERATURE_CTRL].total_arrivals++;
 
     server *s = findFreeServer(blocks[TEMPERATURE_CTRL].firstServer);
 
     // C'è un servente libero, quindi genero il completamento
     if (s != NULL) {
+        printf("C'è un servente libero nel controllo temperatura: %d\n", s->id);
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
         insertSorted(&global_sorted_completions, c);
     } else {
+        printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato");
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
     enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
     clock.arrival = getArrival(clock.current);          // Genera prossimo arrivo
-    blocks[TEMPERATURE_CTRL].total_arrivals++;
 }
 
 // Processa un next-event di completamento
 void process_completion(compl c) {
-    blocks[c.server->nodeType].total_completions++;
+    int block_type = c.server->block_type;
+    blocks[block_type].total_completions++;
+
     int destination;
     server *freeServer;
-    printf("\nProcessamento di un Completamento\n");
+    printf("\nProcessamento di un Completamento sul Blocco #%d\n", block_type);
 
-    switch (c.server->nodeType) {
-        case TEMPERATURE_CTRL:;
-            struct job j = dequeue(&blocks[TEMPERATURE_CTRL]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
-            deleteElement(&global_sorted_completions, c);
+    dequeue(&blocks[block_type]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
+    deleteElement(&global_sorted_completions, c);
 
-            // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
-            if (blocks[TEMPERATURE_CTRL].jobInQueue > 0) {
-                printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->nodeType, c.server->id);
+    // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
+    if (blocks[block_type].jobInQueue > 0) {
+        printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block_type, c.server->id);
 
-                blocks[TEMPERATURE_CTRL].jobInQueue--;
-                c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
-                insertSorted(&global_sorted_completions, c);
-            } else {
-                printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->nodeType, c.server->id);
-                c.server->status = IDLE;
-            }
+        blocks[block_type].jobInQueue--;
+        c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
+        insertSorted(&global_sorted_completions, c);
+    } else {
+        printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block_type, c.server->id);
+        c.server->status = IDLE;
+    }
 
-            // Gestione blocco destinazione
-            destination = getDestination(c.server->nodeType);  // Trova la destinazione adatta per il job appena servito
-            printf("Inoltro il job al destinatario: %d\n", destination);
-            if (destination == EXIT) {
-                // Il job esce dal sistema
-                break;
-            }
-            blocks[destination].total_arrivals++;
-            enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+    if (block_type == GREEN_PASS) {
+        // Il Job è completato ed esce dal sistema
+        completed++;
+        return;
+    }
 
-            // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
-            freeServer = findFreeServer(blocks[destination].firstServer);
-            if (freeServer != NULL) {
-                compl c2 = {freeServer, INFINITY};
-                c2.value = clock.current + getService(destination, freeServer->stream);
-                insertSorted(&global_sorted_completions, c2);
-                freeServer->status = BUSY;
-            } else {
-                blocks[destination].jobInQueue++;
-            }
-            break;
+    // Gestione blocco destinazione
+    destination = getDestination(c.server->block_type);  // Trova la destinazione adatta per il job appena servito
+    printf("Inoltro il job al blocco destinatario: #%d\n", destination);
+    if (destination == EXIT) {
+        // Il job viene scartato
+        dropped++;
+        return;
+    }
+    blocks[destination].total_arrivals++;
+    enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
-        case TICKET_BUY:
-            dequeue(&blocks[TICKET_BUY]);
-            deleteElement(&global_sorted_completions, c);
-            if (blocks[TICKET_BUY].jobInQueue > 0) {
-                blocks[TICKET_BUY].jobInQueue--;
-                c.value = clock.current + getService(TICKET_BUY, c.server->stream);
-                insertSorted(&global_sorted_completions, c);
-            } else {
-                c.server->status = IDLE;
-            }
-
-            destination = getDestination(c.server->nodeType);
-            printf("Inoltro il job al destinatario: %d\n", destination);
-            enqueue(&blocks[destination], c.value);
-            freeServer = findFreeServer(blocks[destination].firstServer);
-            if (freeServer != NULL) {
-                compl c2 = {freeServer, INFINITY};
-                c2.value = clock.current + getService(destination, freeServer->stream);
-                insertSorted(&global_sorted_completions, c2);
-                freeServer->status = BUSY;
-            } else {
-                blocks[destination].jobInQueue++;
-            }
-            break;
-
-        case SEASON_GATE:
-            dequeue(&blocks[SEASON_GATE]);
-            deleteElement(&global_sorted_completions, c);
-            if (blocks[SEASON_GATE].jobInQueue > 0) {
-                blocks[SEASON_GATE].jobInQueue--;
-                c.value = clock.current + getService(SEASON_GATE, c.server->stream);
-                insertSorted(&global_sorted_completions, c);
-            } else {
-                c.server->status = IDLE;
-            }
-
-            destination = getDestination(c.server->nodeType);
-            printf("Inoltro il job al destinatario: %d\n", destination);
-            enqueue(&blocks[destination], c.value);
-            freeServer = findFreeServer(blocks[destination].firstServer);
-            if (freeServer != NULL) {
-                compl c2 = {freeServer, INFINITY};
-                c2.value = clock.current + getService(destination, freeServer->stream);
-                insertSorted(&global_sorted_completions, c2);
-                freeServer->status = BUSY;
-            } else {
-                blocks[destination].jobInQueue++;
-            }
-            break;
-
-        case TICKET_GATE:
-            dequeue(&blocks[TICKET_GATE]);
-            deleteElement(&global_sorted_completions, c);
-            if (blocks[TICKET_GATE].jobInQueue > 0) {
-                blocks[TICKET_GATE].jobInQueue--;
-                c.value = clock.current + getService(TICKET_GATE, c.server->stream);
-                insertSorted(&global_sorted_completions, c);
-            } else {
-                c.server->status = IDLE;
-            }
-
-            destination = getDestination(c.server->nodeType);
-            printf("Inoltro il job al destinatario: %d\n", destination);
-            enqueue(&blocks[destination], c.value);
-            freeServer = findFreeServer(blocks[destination].firstServer);
-            if (freeServer != NULL) {
-                compl c2 = {freeServer, INFINITY};
-                c2.value = clock.current + getService(destination, freeServer->stream);
-                insertSorted(&global_sorted_completions, c2);
-                freeServer->status = BUSY;
-            } else {
-                blocks[destination].jobInQueue++;
-            }
-            break;
-
-        case GREEN_PASS:
-            dequeue(&blocks[GREEN_PASS]);
-            deleteElement(&global_sorted_completions, c);
-            if (blocks[GREEN_PASS].jobInQueue > 0) {
-                blocks[GREEN_PASS].jobInQueue--;
-                c.value = clock.current + getService(GREEN_PASS, c.server->stream);
-                insertSorted(&global_sorted_completions, c);
-            } else {
-                c.server->status = IDLE;
-            }
-            break;
-
-        default:
-            break;
+    // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
+    freeServer = findFreeServer(blocks[destination].firstServer);
+    if (freeServer != NULL) {
+        compl c2 = {freeServer, INFINITY};
+        c2.value = clock.current + getService(destination, freeServer->stream);
+        insertSorted(&global_sorted_completions, c2);
+        freeServer->status = BUSY;
+    } else {
+        blocks[destination].jobInQueue++;
     }
 }
 
@@ -345,7 +263,7 @@ void init_blocks() {
 
         server *head = (server *)malloc(sizeof(server));
         head->id = 1;
-        head->nodeType = block_type;
+        head->block_type = block_type;
         head->stream = streamID++;
         compl c = {head, INFINITY};
 
@@ -378,7 +296,7 @@ void init_blocks() {
             server *s = (server *)malloc(sizeof(server));
             s->id = i + 1;
             s->status = 0;
-            s->nodeType = block_type;
+            s->block_type = block_type;
             s->stream = streamID++;
             last->next = s;
             compl c = {last, INFINITY};

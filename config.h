@@ -1,10 +1,10 @@
 #define NUM_BLOCKS 5
 
 #define TEMPERATURE_CTRL_SERVERS 3
-#define TICKET_BUY_SERVERS 30
-#define TICKET_GATE_SERVERS 10
-#define SEASON_GATE_SERVERS 2
-#define GREEN_PASS_SERVERS 30
+#define TICKET_BUY_SERVERS 20
+#define SEASON_GATE_SERVERS 1
+#define TICKET_GATE_SERVERS 5
+#define GREEN_PASS_SERVERS 15
 #define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
@@ -80,7 +80,7 @@ typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
     int stream;
-    enum block_types nodeType;
+    enum block_types block_type;
     struct server_t *next;
 } server;
 
