@@ -82,7 +82,7 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+        //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 }
@@ -201,7 +201,7 @@ void process_completion(compl c) {
         printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block_type, c.server->id);
 
         blocks[block_type].jobInQueue--;
-        c.value = clock.current + getService(TEMPERATURE_CTRL, c.server->stream);
+        c.value = clock.current + getService(block_type, c.server->stream);
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block_type, c.server->id);
