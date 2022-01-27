@@ -118,11 +118,14 @@ void print_completions_status(sorted_completions *compls, int num, struct node b
     printf("\n");
 }
 
+double drand(double low, double high) {
+    return ((double)rand() * (high - low)) / (double)100 + low;
+}
+
 // Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
+//TODO finire
 bool routing_to(int prob) {
-    int random = rand() % 100;
-    if (random < prob) {
-        return true;
+    double random = drand(0, 100);
+    if (random < P_EXIT_TEMP) {
     }
-    return false;
 }
