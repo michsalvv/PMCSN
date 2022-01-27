@@ -42,7 +42,6 @@ void debug_routing() {
         }
         if (res == TICKET_BUY) {
             numTicketBuy++;
-            printf("%d\n", numTicketBuy);
         }
         if (res == TICKET_GATE) {
             numTicketGate++;
@@ -56,16 +55,18 @@ void debug_routing() {
 }
 
 int main() {
-    PutSeed(65445545454);
+    //debug_routing();
     init_network();
 
     // Gestione degli arrivi e dei completamenti
     while (clock.arrival <= STOP) {
-        clearScreen();
+        //clearScreen();
+        printf(" \n========== NEW STEP ==========\n");
         printf("Prossimo arrivo: %f\n", clock.arrival);
         printf("Clock corrente: %f\n", clock.current);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
+        printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block_type, nextCompletion->server->id, nextCompletion->value);
 
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
         clock.current = clock.next;                              // Avanzamento del clock al valore del prossimo evento
@@ -81,7 +82,7 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        //print_completions_status(&global_sorted_completions,blocks, dropped, completed);
+        print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 }
@@ -239,7 +240,7 @@ void process_completion(compl c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     printf("Initializing Network\n");
-    PlantSeeds(1293829);
+    PlantSeeds(5234234);
     streamID = 0;
 
     blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;

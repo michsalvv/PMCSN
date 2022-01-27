@@ -132,20 +132,18 @@ int deleteElement(sorted_completions *compls, compl completion) {
 }
 
 void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions) {
-    printf("\nBusy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
+    printf("\n==============================================================================\n");
+    printf("Busy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
     printf("TEMPERATURE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
     printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
     printf("SEASON_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
     printf("GREEN_PASS  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[4].jobInQueue, blocks[4].total_arrivals, blocks[4].total_completions);
+    printf("==============================================================================\n");
 
     for (int i = 0; i < compls->num_completions; i++) {
         compl actual = compls->sorted_list[i];
         printf("(%d,%d)  %d  %f\n", actual.server->block_type, actual.server->id, actual.server->status, actual.value);
     }
     printf("\n");
-}
-
-double drand(double low, double high) {
-    return ((double)rand() * (high - low)) / (double)100 + low;
 }
