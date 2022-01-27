@@ -15,6 +15,37 @@
 #define BUSY 1
 #define IDLE 0
 
+// Input Values
+#define LAMBDA_1 2.888889
+#define LAMBDA_2 4.242424
+#define LAMBDA_3 2.266667
+
+// Time Slot Values
+#define TIME_SLOT_1 10800
+#define TIME_SLOT_2 39600
+#define TIME_SLOT_3 18000
+
+// Services Time
+#define SERV_TEMPERATURE_CTRL 0.9
+#define SERV_TICKET_BUY 18
+#define SERV_TICKET_GATE 4
+#define SERV_SEASON_GATE 2.5
+#define SERV_GREEN_PASS 10
+
+// Routing Probabilities
+#define P_EXIT_TEMP 0.2
+#define P_TICKET_BUY 48.295
+#define P_TICKET_GATE 26.005
+#define P_SEASON_GATE 25.5
+#define P_EXIT_GREEN 0.05
+
+// Costs
+#define C_TEMPERATURE_CTRL_SERVER 0.010819
+#define C_TICKET_BUY_SERVER 0.060429
+#define C_TICKET_GATE_SERVER 0.00134
+#define C_SEASON_GATE_SERVER 0.133041
+#define C_GREEN_PASS_SERVER 0.153996
+
 #define handle_error(msg)   \
     do {                    \
         perror(msg);        \

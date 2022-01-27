@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 
 #include "config.h"
@@ -7,7 +8,6 @@
 enum node_type getDestination(enum node_type from) {
     switch (from) {
         case TEMPERATURE_CTRL:
-            // TODO aggiungere probabilità
             return TICKET_BUY;
         case SEASON_GATE:
             return GREEN_PASS;
@@ -122,4 +122,16 @@ void print_completions_status(sorted_completions *compls, int num, struct node b
         printf("(%d,%d)  %d  %f\n", actual.server->nodeType, actual.server->id, actual.server->status, actual.value);
     }
     printf("\n");
+}
+
+double drand(double low, double high) {
+    return ((double)rand() * (high - low)) / (double)100 + low;
+}
+
+// Genera un numero casuale e ritorna true o false in base alla probabilita di perdita passata in input
+//TODO finire
+bool routing_to(int prob) {
+    double random = drand(0, 100);
+    if (random < P_EXIT_TEMP) {
+    }
 }
