@@ -147,17 +147,18 @@ void print_completions_status(sorted_completions *compls, struct block blocks[],
     printf("\n==============================================================================\n");
     printf("Busy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
     //printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
-    printf("TEMPERATURE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
-    printf("TICKET_BUY  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
-    printf("SEASON_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
-    printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
-    printf("GREEN_PASS  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[4].jobInQueue, blocks[4].total_arrivals, blocks[4].total_completions);
+    printf("TEMPERATURE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInBlock, blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
+    printf("TICKET_BUY  | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInBlock, blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
+    printf("SEASON_GATE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInBlock, blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
+    printf("TICKET_GATE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInBlock, blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
+    printf("GREEN_PASS  | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[4].jobInBlock, blocks[4].jobInQueue, blocks[4].total_arrivals, blocks[4].total_completions);
     printf("==============================================================================\n");
-
+    /*
     for (int i = 0; i < compls->num_completions; i++) {
         compl actual = compls->sorted_list[i];
         printf("(%d,%d)  %d  %f\n", actual.server->block->type, actual.server->id, actual.server->status, actual.value);
     }
+    */
     printf("\n");
 }
 

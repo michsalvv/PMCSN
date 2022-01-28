@@ -21,6 +21,8 @@ void init_network();
 void init_blocks();
 void set_time_slot();
 void activate_servers();
+void deactivate_servers();
+void update_network();
 
 int time_slot;
 bool slot_switched[3];
@@ -43,7 +45,7 @@ void print_network_status() {
     for (int j = 0; j < NUM_BLOCKS; j++) {
         for (int i = 0; i < MAX_SERVERS; i++) {
             server s = global_network_status.server_list[j][i];
-            printf("(%d,%d) | status: {%d,%d}\n", s.block->type, s.id, s.status, s.online);
+            printf("(%d,%d) | status: {%d,%d} resched: %d\n", s.block->type, s.id, s.status, s.online, s.need_resched);
         }
     }
 }
@@ -53,7 +55,7 @@ int main() {
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2) {
+    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3) {
         //clearScreen();
         set_time_slot();
         printf(" \n========== NEW STEP ==========\n");
@@ -219,7 +221,7 @@ void process_completion(compl c) {
     deleteElement(&global_sorted_completions, c);
 
     // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
-    if (blocks[block_type].jobInQueue > 0) {
+    if (blocks[block_type].jobInQueue > 0 && !c.server->need_resched) {
         printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
 
         blocks[block_type].jobInQueue--;
@@ -231,6 +233,11 @@ void process_completion(compl c) {
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
         c.server->status = IDLE;
+    }
+
+    if (c.server->need_resched) {
+        c.server->online = OFFLINE;
+        c.server->need_resched = false;
     }
 
     if (block_type == GREEN_PASS) {
@@ -269,7 +276,7 @@ void process_completion(compl c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     printf("Initializing Network\n");
-    PlantSeeds(32432423);
+    PlantSeeds(22111);
     streamID = 0;
     slot_switched[0] = false;
     slot_switched[1] = false;
@@ -304,6 +311,7 @@ void init_blocks() {
             s.id = i;
             s.status = IDLE;
             s.online = OFFLINE;
+            s.need_resched = false;
             s.block = &blocks[block_type];
             s.stream = streamID++;
 
@@ -324,19 +332,24 @@ void set_time_slot() {
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
         time_slot = 1;
-        printf("CAMBIO FASCIA a 2!");
         arrival_rate = LAMBDA_2;
         activate_servers();
         slot_switched[1] = true;
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         time_slot = 2;
-        printf("CAMBIO FASCIA a 3!");
         arrival_rate = LAMBDA_3;
-        //activate_servers();
-        //sleep(30);
+        deactivate_servers();
         slot_switched[2] = true;
     }
+}
+
+//TODO fare un if per vedere se aumentano o diminuiscono i server e fare activate o deactivate per ogni blocco e a seconda chiamiamo activate o deactivate per quel blocco
+void update_network() {
+    // for i in blocks
+    //  controllo se aumenta o diminuisce
+    //      activate o deactivate
+    //quindi togliere da deactivate e activate il ciclo esterno sui blocchi
 }
 
 void activate_servers() {
@@ -368,4 +381,21 @@ void activate_servers() {
 }
 
 void deactivate_servers() {
+    int start = 0;
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        start = global_network_status.num_online_servers[j];
+
+        for (int i = start - 1; i >= config.slot_config[time_slot][j]; i--) {
+            server *s = &global_network_status.server_list[j][i];
+
+            if (s->status == BUSY) {
+                s->need_resched = true;
+            } else {
+                s->online = OFFLINE;
+            }
+        }
+        global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
+    }
+    //print_network_status();
+    //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 }

@@ -84,6 +84,7 @@ typedef struct server_t {
     int stream;
     struct block *block;
     struct sum sum;
+    bool need_resched;
 } server;
 
 typedef struct {
