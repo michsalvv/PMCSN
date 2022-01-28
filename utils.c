@@ -165,3 +165,28 @@ void print_completions_status(sorted_completions *compls, struct block blocks[],
     }
     printf("\n");
 }
+
+void debug_routing() {
+    int numExit = 0;
+    int numTicketBuy = 0;
+    int numTicketGate = 0;
+    int numSeasonGate = 0;
+
+    for (int i = 0; i < 1000; i++) {
+        int res = routing_from_temperature();
+        if (res == EXIT) {
+            numExit++;
+        }
+        if (res == TICKET_BUY) {
+            numTicketBuy++;
+        }
+        if (res == TICKET_GATE) {
+            numTicketGate++;
+        }
+        if (res == SEASON_GATE) {
+            numSeasonGate++;
+        }
+    }
+    printf("Exit: %d\nTickBuy: %d\nTickGate: %d\nSeasGate: %d\n", numExit, numTicketBuy, numTicketGate, numSeasonGate);
+    exit(0);
+}

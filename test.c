@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,6 +19,8 @@ void process_arrival();
 void process_completion(compl completion);
 void init_network();
 void init_blocks();
+void set_arrival_rate();
+bool slot_switched[3];
 
 int streamID;                                  // Stream da selezionare per generare il tempo di servizio
 server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
@@ -29,38 +32,16 @@ int dropped = 0;
 struct block blocks[NUM_BLOCKS];
 struct clock_t clock;
 
-void debug_routing() {
-    int numExit = 0;
-    int numTicketBuy = 0;
-    int numTicketGate = 0;
-    int numSeasonGate = 0;
-
-    for (int i = 0; i < 1000; i++) {
-        int res = routing_from_temperature();
-        if (res == EXIT) {
-            numExit++;
-        }
-        if (res == TICKET_BUY) {
-            numTicketBuy++;
-        }
-        if (res == TICKET_GATE) {
-            numTicketGate++;
-        }
-        if (res == SEASON_GATE) {
-            numSeasonGate++;
-        }
-    }
-    printf("Exit: %d\nTickBuy: %d\nTickGate: %d\nSeasGate: %d\n", numExit, numTicketBuy, numTicketGate, numSeasonGate);
-    exit(0);
-}
+double arrival_rate;
 
 int main() {
     //debug_routing();
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= STOP) {
+    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3) {
         //clearScreen();
+        set_arrival_rate();
         printf(" \n========== NEW STEP ==========\n");
         printf("Prossimo arrivo: %f\n", clock.arrival);
         printf("Clock corrente: %f\n", clock.current);
@@ -102,7 +83,7 @@ int main() {
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Exponential(1 / LAMBDA_1);
+    arrival += Exponential(1 / arrival_rate);
     return (arrival);
 }
 
@@ -253,6 +234,10 @@ void init_network() {
     printf("Initializing Network\n");
     PlantSeeds(5234234);
     streamID = 0;
+    slot_switched[0] = false;
+    slot_switched[1] = false;
+    slot_switched[2] = false;
+    set_arrival_rate();
 
     blocks[TEMPERATURE_CTRL].num_server = TEMPERATURE_CTRL_SERVERS;
     blocks[TICKET_BUY].num_server = TICKET_BUY_SERVERS;
@@ -317,5 +302,24 @@ void init_blocks() {
         }
         compl c2 = {last, INFINITY};
         insertSorted(&global_sorted_completions, c2);
+    }
+}
+
+void set_arrival_rate() {
+    if (clock.current < TIME_SLOT_1 && !slot_switched[0]) {
+        arrival_rate = LAMBDA_1;
+        slot_switched[0] = true;
+    }
+    if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
+        printf("CAMBIO FASCIA a 2!");
+        sleep(5);
+        arrival_rate = LAMBDA_2;
+        slot_switched[1] = true;
+    }
+    if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
+        printf("CAMBIO FASCIA a 3!");
+        sleep(5);
+        arrival_rate = LAMBDA_3;
+        slot_switched[2] = true;
     }
 }

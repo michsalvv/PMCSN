@@ -8,8 +8,6 @@
 #define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
-#define STOP 10800.0  // Configurazone per prima fascia
-#define SERVERS 3
 #define DEBUG 0
 
 #define BUSY 1
