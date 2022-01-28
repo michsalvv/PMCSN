@@ -9,5 +9,6 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
 int insertSorted(sorted_completions *compls, compl completion);
 int deleteElement(sorted_completions *compls, compl completion);
 void print_completions_status(sorted_completions *server_list, struct block blocks[], int dropped, int completions);
-void printStatistics(struct block blocks[], double currentClock);
+void print_statistics(network_status *network, struct block blocks[], double currentClock);
 static inline char *stringFromEnum(enum block_types f);
+network_configuration get_config(int *values_1, int *values_2, int *values_3);

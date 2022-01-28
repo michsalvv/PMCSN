@@ -39,16 +39,6 @@ struct clock_t clock;
 
 double arrival_rate;
 
-network_configuration get_config(int *values_1, int *values_2, int *values_3) {
-    network_configuration *config = malloc(sizeof(network_configuration));
-    for (int i = 0; i < NUM_BLOCKS; i++) {
-        config->slot_config[0][i] = values_1[i];
-        config->slot_config[1][i] = values_2[i];
-        config->slot_config[2][i] = values_3[i];
-    }
-    return *config;
-}
-
 void print_network_status() {
     for (int j = 0; j < NUM_BLOCKS; j++) {
         for (int i = 0; i < MAX_SERVERS; i++) {
@@ -63,7 +53,7 @@ int main() {
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3) {
+    while (clock.arrival <= TIME_SLOT_1) {
         //clearScreen();
         set_time_slot();
         printf(" \n========== NEW STEP ==========\n");
@@ -98,7 +88,7 @@ int main() {
         // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed);
-    printStatistics(blocks, clock.current);
+    print_statistics(&global_network_status, blocks, clock.current);
 }
 
 /*

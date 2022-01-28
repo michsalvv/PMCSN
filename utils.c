@@ -12,7 +12,7 @@
 #include "config.h"
 
 char *stringFromEnum(enum block_types f) {
-    char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "TICKET_GATE", "SEASON_GATE", "GREEN_PASS"};
+    char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "SEASON_GATE", "TICKET_GATE", "GREEN_PASS"};
     return strings[f];
 }
 
@@ -186,13 +186,13 @@ void debug_routing() {
     exit(0);
 }
 
-void printStatistics(struct block blocks[], double currentClock /*.sorted_completions *compls*/) {
+void print_statistics(network_status *network, struct block blocks[], double currentClock /*.sorted_completions *compls*/) {
     char type[20];
     for (int i = 0; i < NUM_BLOCKS; i++) {
         strcpy(type, stringFromEnum(blocks[i].type));
 
         printf("\n\n======== Result for block %s ========\n", type);
-        printf("Number of Servers ................... = %6.2d\n", blocks[i].num_server);
+        printf("Number of Servers ................... = %6.2d\n", network->num_online_servers[i]);
         printf("Arrivals ............................ = %6.2d\n", blocks[i].total_arrivals);
         printf("Job in Queue at the end ............. = %6.2d\n", blocks[i].jobInQueue);
         printf("Average interarrivlas................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
@@ -208,6 +208,16 @@ void printStatistics(struct block blocks[], double currentClock /*.sorted_comple
         //     printf("Utilization of server %d = %f", j, (compls->sorted_list[j].server->sum.service/currentClock);
         // }
 
-        printf("Utilization ......................... = %6.2f\n", blocks[i].area.service / (currentClock * blocks[i].num_server));
+        //printf("Utilization ......................... = %6.2f\n", blocks[i].area.service / (currentClock * blocks[i].num_server));
     }
+}
+
+network_configuration get_config(int *values_1, int *values_2, int *values_3) {
+    network_configuration *config = malloc(sizeof(network_configuration));
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        config->slot_config[0][i] = values_1[i];
+        config->slot_config[1][i] = values_2[i];
+        config->slot_config[2][i] = values_3[i];
+    }
+    return *config;
 }
