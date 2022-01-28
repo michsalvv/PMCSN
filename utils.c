@@ -3,12 +3,18 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "DES/rng.h"
 #include "DES/rvgs.h"
 #include "config.h"
+
+char *stringFromEnum(enum block_types f) {
+    char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "TICKET_GATE", "SEASON_GATE", "GREEN_PASS"};
+    return strings[f];
+}
 
 // Fornisce il blocco di destinazione partendo dal blocco del controllo temperatura
 int routing_from_temperature() {
@@ -146,4 +152,30 @@ void print_completions_status(sorted_completions *compls, struct block blocks[],
         printf("(%d,%d)  %d  %f\n", actual.server->block_type, actual.server->id, actual.server->status, actual.value);
     }
     printf("\n");
+}
+
+void printStatistics(struct block blocks[], double currentClock /*.sorted_completions *compls*/) {
+    char type[20];
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        strcpy(type, stringFromEnum(blocks[i].type));
+
+        printf("\n\n======== Result for block %s ========\n", type);
+        printf("Number of Servers ................... = %6.2d\n", blocks[i].num_server);
+        printf("Arrivals ............................ = %6.2d\n", blocks[i].total_arrivals);
+        printf("Job in Queue at the end ............. = %6.2d\n", blocks[i].jobInQueue);
+        printf("Average interarrivlas................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
+
+        printf("Average wait ........................ = %6.2f\n", blocks[i].area.node / blocks[i].total_arrivals);
+        printf("Average delay ....................... = %6.2f\n", blocks[i].area.queue / blocks[i].total_arrivals);
+        printf("Average service time ................ = %6.2f\n", blocks[i].area.service / blocks[i].total_arrivals);
+
+        printf("Average # in the queue .............. = %6.2f\n", blocks[i].area.queue / currentClock);
+        printf("Average # in the node ............... = %6.2f\n", blocks[i].area.node / currentClock);
+
+        // for (int j = 0; j < blocks[i].num_server; j++) {
+        //     printf("Utilization of server %d = %f", j, (compls->sorted_list[j].server->sum.service/currentClock);
+        // }
+
+        printf("Utilization ......................... = %6.2f\n", blocks[i].area.service / (currentClock * blocks[i].num_server));
+    }
 }

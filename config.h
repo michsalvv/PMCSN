@@ -1,10 +1,10 @@
 #define NUM_BLOCKS 5
 
-#define TEMPERATURE_CTRL_SERVERS 3
-#define TICKET_BUY_SERVERS 10
+#define TEMPERATURE_CTRL_SERVERS 10
+#define TICKET_BUY_SERVERS 20
 #define SEASON_GATE_SERVERS 1
 #define TICKET_GATE_SERVERS 5
-#define GREEN_PASS_SERVERS 10
+#define GREEN_PASS_SERVERS 15
 #define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
 
 #define START 0.0
@@ -61,6 +61,12 @@ enum block_types {
     EXIT
 };
 
+// Struttura che mantiene la somma accumulata
+struct sum {
+    double service;  // Tempi di servizio
+    long served;     // Numero di job serviti
+};
+
 // Struttura che mantiene il clock
 struct clock_t {
     double current;  // Tempo attuale di simulazione
@@ -80,9 +86,16 @@ typedef struct server_t {
     int id;
     int status;  // {0=idle, 1=busy}
     int stream;
+    struct sum sum;
     enum block_types block_type;
     struct server_t *next;
 } server;
+
+struct area {
+    double node;    /* time integrated number in the node  */
+    double queue;   /* time integrated number in the queue */
+    double service; /* time integrated number in service */
+};
 
 // Blocco
 struct block {
@@ -91,7 +104,7 @@ struct block {
     struct job in_service;
     struct job *head_second;
     struct job *tail_second;
-    double area;
+
     // double opening_time;
     double active_time;
     int jobInQueue;
@@ -103,6 +116,8 @@ struct block {
 
     int num_server;
     server *firstServer;
+
+    struct area area;
 };
 
 // Struttura che mantiene un completamento su un server
@@ -116,15 +131,3 @@ typedef struct {
     compl sorted_list[TOTAL_SERVERS];
     int num_completions;
 } sorted_completions;
-
-// Struttura che mantiene la somma accumulata
-// struct {
-//     double service;  // Tempi di servizio
-//     long served;     // Numero di job serviti
-// } sum[SERVERS + 1];
-
-// struct area {
-//     double node;    /* time integrated number in the node  */
-//     double queue;   /* time integrated number in the queue */
-//     double service; /* time integrated number in service */
-// };
