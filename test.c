@@ -74,8 +74,13 @@ int main() {
         printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
 
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+
         for (int i = 0; i < NUM_BLOCKS; i++) {
-            blocks[i].area += (clock.next - clock.current) * blocks[i].jobInBlock;
+            if (blocks[i].jobInBlock > 0) {
+                blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
+                blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
+                blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
+            }
         }
 
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
@@ -93,11 +98,7 @@ int main() {
         // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed);
-
-    for (int i = 0; i < NUM_BLOCKS; i++) {
-        // printf("\navg wait for block #%d........... = %6.2f\n", i, blocks[i].area / blocks[i].total_arrivals);
-        printf("avg  # in queue in block #%d........... = %6.2f\n", i, blocks[i].area / clock.current);
-    }
+    printStatistics(blocks, clock.current);
 }
 
 /*
@@ -187,6 +188,8 @@ void process_arrival() {
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
+        // s->sum.service += serviceTime;
+        // s->sum.served++;
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
@@ -214,7 +217,10 @@ void process_completion(compl c) {
         printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
 
         blocks[block_type].jobInQueue--;
-        c.value = clock.current + getService(block_type, c.server->stream);
+        double service_1 = getService(block_type, c.server->stream);
+        c.value = clock.current + service_1;
+        // c.server->sum.service += service_1;
+        // c.server->sum.served++;
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
@@ -243,9 +249,12 @@ void process_completion(compl c) {
     freeServer = findFreeServer(blocks[destination]);
     if (freeServer != NULL) {
         compl c2 = {freeServer, INFINITY};
-        c2.value = clock.current + getService(destination, freeServer->stream);
+        double service_2 = getService(destination, freeServer->stream);
+        c2.value = clock.current + service_2;
         insertSorted(&global_sorted_completions, c2);
         freeServer->status = BUSY;
+        // freeServer->sum.service += service_2;
+        // freeServer->sum.served++;
     } else {
         blocks[destination].jobInQueue++;
     }

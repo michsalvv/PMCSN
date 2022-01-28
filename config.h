@@ -57,6 +57,12 @@ enum block_types {
     EXIT
 };
 
+// Struttura che mantiene la somma accumulata
+struct sum {
+    double service;  // Tempi di servizio
+    long served;     // Numero di job serviti
+};
+
 // Struttura che mantiene il clock
 struct clock_t {
     double current;  // Tempo attuale di simulazione
@@ -77,6 +83,7 @@ typedef struct server_t {
     int status;  // {0=IDLE, 1=BUSY}
     int stream;
     struct block *block;
+    struct sum sum;
 } server;
 
 typedef struct {
@@ -85,6 +92,12 @@ typedef struct {
 
 } network_status;
 
+struct area {
+    double node;    /* time integrated number in the node  */
+    double queue;   /* time integrated number in the queue */
+    double service; /* time integrated number in service */
+};
+
 // Blocco
 struct block {
     struct job *head;
@@ -92,7 +105,6 @@ struct block {
     struct job in_service;
     //struct job *head_second;
     //struct job *tail_second;
-    double area;
     // double opening_time;
     double active_time;
     int jobInQueue;
@@ -101,6 +113,7 @@ struct block {
 
     int total_arrivals;
     int total_completions;
+    struct area area;
 };
 
 // Struttura che mantiene un completamento su un server
@@ -119,15 +132,3 @@ typedef struct {
     int slot_config[3][NUM_BLOCKS];
 
 } network_configuration;
-
-// Struttura che mantiene la somma accumulata
-// struct {
-//     double service;  // Tempi di servizio
-//     long served;     // Numero di job serviti
-// } sum[SERVERS + 1];
-
-// struct area {
-//     double node;    /* time integrated number in the node  */
-//     double queue;   /* time integrated number in the queue */
-//     double service; /* time integrated number in service */
-// };
