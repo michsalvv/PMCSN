@@ -1,17 +1,15 @@
 #define NUM_BLOCKS 5
 
-#define TEMPERATURE_CTRL_SERVERS 3
-#define TICKET_BUY_SERVERS 20
-#define SEASON_GATE_SERVERS 1
-#define TICKET_GATE_SERVERS 5
-#define GREEN_PASS_SERVERS 15
-#define TOTAL_SERVERS TEMPERATURE_CTRL_SERVERS + TICKET_BUY_SERVERS + TICKET_GATE_SERVERS + SEASON_GATE_SERVERS + GREEN_PASS_SERVERS
+#define MAX_SERVERS 50
 
 #define START 0.0
 #define DEBUG 0
 
 #define BUSY 1
 #define IDLE 0
+
+#define ONLINE 1
+#define OFFLINE 0
 
 // Input Values
 #define LAMBDA_1 2.888889
@@ -53,8 +51,8 @@
 enum block_types {
     TEMPERATURE_CTRL,
     TICKET_BUY,
-    TICKET_GATE,
     SEASON_GATE,
+    TICKET_GATE,
     GREEN_PASS,
     EXIT
 };
@@ -75,31 +73,34 @@ struct job {
 // Servente
 typedef struct server_t {
     int id;
+    int online;  // {0=OFFLINE, 1=ONLINE}
     int status;  // {0=IDLE, 1=BUSY}
     int stream;
-    enum block_types block_type;
-    struct server_t *next;
+    struct block *block;
 } server;
+
+typedef struct {
+    server server_list[NUM_BLOCKS][MAX_SERVERS];
+    int num_online_servers[NUM_BLOCKS];
+
+} network_status;
 
 // Blocco
 struct block {
     struct job *head;
     struct job *tail;
     struct job in_service;
-    struct job *head_second;
-    struct job *tail_second;
+    //struct job *head_second;
+    //struct job *tail_second;
     double area;
     // double opening_time;
     double active_time;
     int jobInQueue;
     int jobInBlock;
-    enum block_types type;  // forse non serve
+    enum block_types type;
 
     int total_arrivals;
     int total_completions;
-
-    int num_server;
-    server *firstServer;
 };
 
 // Struttura che mantiene un completamento su un server
@@ -110,9 +111,14 @@ typedef struct {
 
 // Struttura che mantiene la lista ordinata di tutti i completamenti
 typedef struct {
-    compl sorted_list[TOTAL_SERVERS];
+    compl sorted_list[NUM_BLOCKS * MAX_SERVERS];
     int num_completions;
 } sorted_completions;
+
+typedef struct {
+    int slot_config[3][NUM_BLOCKS];
+
+} network_configuration;
 
 // Struttura che mantiene la somma accumulata
 // struct {

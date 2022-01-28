@@ -40,7 +40,7 @@ int getDestination(enum block_types from) {
             break;
     }
 }
-
+/*
 double calculate_cost(int seconds) {
     // Numero di secondi in un mese sulle 19 ore lavorative
     float sec_in_month = 60 * 60 * 19 * 30;
@@ -57,22 +57,11 @@ double calculate_cost(int seconds) {
 
     return temp_c + buy_c + ticket_c + season_c + green_c;
 }
+*/
 
 // Ritorna il minimo tra due valori
 double min(double x, double y) {
     return (x < y) ? x : y;
-}
-
-// Scorre l'intera Linked List dei serventi
-server *iterateOver(server *s) {
-    server *current = s;
-    while (current != NULL) {
-        if (current->next != NULL) {
-            current = current->next;
-        } else
-            break;
-    }
-    return current;
 }
 
 /*
@@ -109,7 +98,7 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
 
 // Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, compl completion) {
-    printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->block_type, completion.server->id, completion.value);
+    printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
 
     int i;
     int n = compls->num_completions;
@@ -126,7 +115,7 @@ int insertSorted(sorted_completions *compls, compl completion) {
 // Function to delete an element
 int deleteElement(sorted_completions *compls, compl completion) {
     // Find position of element to be deleted
-    printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->block_type, completion.server->id, completion.value);
+    printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
 
     int n = compls->num_completions;
 
@@ -151,7 +140,7 @@ int deleteElement(sorted_completions *compls, compl completion) {
 void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions) {
     printf("\n==============================================================================\n");
     printf("Busy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
-    printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
+    //printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
     printf("TEMPERATURE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
     printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
@@ -161,7 +150,7 @@ void print_completions_status(sorted_completions *compls, struct block blocks[],
 
     for (int i = 0; i < compls->num_completions; i++) {
         compl actual = compls->sorted_list[i];
-        printf("(%d,%d)  %d  %f\n", actual.server->block_type, actual.server->id, actual.server->status, actual.value);
+        printf("(%d,%d)  %d  %f\n", actual.server->block->type, actual.server->id, actual.server->status, actual.value);
     }
     printf("\n");
 }
