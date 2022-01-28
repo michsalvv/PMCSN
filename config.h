@@ -39,12 +39,12 @@
 #define P_SEASON_GATE 25.5
 #define P_EXIT_GREEN 0.05
 
-// Costs
-#define C_TEMPERATURE_CTRL_SERVER 0.010819
-#define C_TICKET_BUY_SERVER 0.060429
-#define C_TICKET_GATE_SERVER 0.00134
-#define C_SEASON_GATE_SERVER 0.133041
-#define C_GREEN_PASS_SERVER 0.153996
+// Costi mensili per server
+#define CM_TEMPERATURE_CTRL_SERVER 300
+#define CM_TICKET_BUY_SERVER 200
+#define CM_SEASON_GATE_SERVER 50
+#define CM_TICKET_GATE_SERVER 1300
+#define CM_GREEN_PASS_SERVER 800
 
 #define handle_error(msg)   \
     do {                    \
@@ -75,10 +75,9 @@ struct job {
 };
 
 // Servente
-// TODO: nota: ho tolto il completamento. Ogni struttura completamento punta ad un servente
 typedef struct server_t {
     int id;
-    int status;  // {0=idle, 1=busy}
+    int status;  // {0=IDLE, 1=BUSY}
     int stream;
     enum block_types block_type;
     struct server_t *next;
@@ -111,7 +110,7 @@ typedef struct {
     double value;
 } compl ;
 
-// Struttura che mantiene la lista ordinata del numero di completamenti
+// Struttura che mantiene la lista ordinata di tutti i completamenti
 typedef struct {
     compl sorted_list[TOTAL_SERVERS];
     int num_completions;

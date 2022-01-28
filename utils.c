@@ -41,6 +41,23 @@ int getDestination(enum block_types from) {
     }
 }
 
+double calculate_cost(int seconds) {
+    // Numero di secondi in un mese sulle 19 ore lavorative
+    float sec_in_month = 60 * 60 * 19 * 30;
+    double temp_c = CM_TEMPERATURE_CTRL_SERVER / sec_in_month * TEMPERATURE_CTRL_SERVERS * seconds;
+    printf("c_temp: %f\n", temp_c);
+    double buy_c = CM_TICKET_BUY_SERVER / sec_in_month * TICKET_BUY_SERVERS * seconds;
+    printf("c_buy: %f\n", buy_c);
+    double ticket_c = CM_TICKET_GATE_SERVER / sec_in_month * TICKET_GATE_SERVERS * seconds;
+    printf("c_tick: %f\n", ticket_c);
+    double season_c = CM_SEASON_GATE_SERVER / sec_in_month * SEASON_GATE_SERVERS * seconds;
+    printf("c_seas: %f\n", season_c);
+    double green_c = CM_GREEN_PASS_SERVER / sec_in_month * GREEN_PASS_SERVERS * seconds;
+    printf("c_green: %f\n", green_c);
+
+    return temp_c + buy_c + ticket_c + season_c + green_c;
+}
+
 // Ritorna il minimo tra due valori
 double min(double x, double y) {
     return (x < y) ? x : y;
@@ -134,6 +151,7 @@ int deleteElement(sorted_completions *compls, compl completion) {
 void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions) {
     printf("\n==============================================================================\n");
     printf("Busy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
+    printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
     printf("TEMPERATURE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
     printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);

@@ -87,7 +87,7 @@ int main() {
         }
         // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
-    // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 
     for (int i = 0; i < NUM_BLOCKS; i++) {
         // printf("\navg wait for block #%d........... = %6.2f\n", i, blocks[i].area / blocks[i].total_arrivals);
