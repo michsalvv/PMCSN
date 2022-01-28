@@ -53,7 +53,7 @@ int main() {
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= TIME_SLOT_1) {
+    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2) {
         //clearScreen();
         set_time_slot();
         printf(" \n========== NEW STEP ==========\n");
@@ -85,9 +85,10 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        // print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+        //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    print_network_status();
     print_statistics(&global_network_status, blocks, clock.current);
 }
 
@@ -114,19 +115,33 @@ void enqueue(struct block *block, double arrival) {
     if (block->tail)  // Appendi alla coda se esiste, altrimenti è la testa
         block->tail->next = j;
     else
-        block->head = j;
+        block->head_service = j;
 
     block->tail = j;
+
+    if (block->head_queue == NULL) {
+        block->head_queue = j;
+    }
 }
 
 // Ritorna e rimuove il job dalla coda del blocco specificata
 struct job dequeue(struct block *block) {
-    struct job *j = block->head;
+    struct job *j = block->head_service;
 
     if (!j->next)
         block->tail = NULL;
 
-    block->head = j->next;
+    block->head_service = j->next;
+
+    if (block->head_queue != NULL && block->head_queue->next != NULL) {
+        struct job *tmp = block->head_queue->next;
+        block->head_queue = tmp;
+    }
+
+    else {
+        block->head_queue = NULL;
+    }
+
     free(j);
 }
 
@@ -181,12 +196,13 @@ void process_arrival() {
         // s->sum.service += serviceTime;
         // s->sum.served++;
         insertSorted(&global_sorted_completions, c);
+        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
     } else {
+        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
         printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
-    enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
-    clock.arrival = getArrival(clock.current);          // Genera prossimo arrivo
+    clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
 }
 
 // Processa un next-event di completamento
@@ -253,7 +269,7 @@ void process_completion(compl c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     printf("Initializing Network\n");
-    PlantSeeds(5234234);
+    PlantSeeds(32432423);
     streamID = 0;
     slot_switched[0] = false;
     slot_switched[1] = false;
@@ -311,26 +327,44 @@ void set_time_slot() {
         printf("CAMBIO FASCIA a 2!");
         arrival_rate = LAMBDA_2;
         activate_servers();
-        sleep(5);
         slot_switched[1] = true;
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         time_slot = 2;
         printf("CAMBIO FASCIA a 3!");
         arrival_rate = LAMBDA_3;
-        activate_servers();
-        sleep(5);
+        //activate_servers();
+        //sleep(30);
         slot_switched[2] = true;
     }
 }
 
 void activate_servers() {
+    int start = 0;
     for (int j = 0; j < NUM_BLOCKS; j++) {
-        for (int i = 0; i < config.slot_config[time_slot][j]; i++) {
-            global_network_status.server_list[j][i].online = ONLINE;
-            global_network_status.num_online_servers[j]++;
+        start = global_network_status.num_online_servers[j];
+        for (int i = start; i < config.slot_config[time_slot][j]; i++) {
+            server *s = &global_network_status.server_list[j][i];
+            s->online = ONLINE;
+            if (blocks[j].jobInQueue > 0) {
+                if (blocks[j].head_queue->next != NULL) {
+                    struct job *tmp = blocks[j].head_queue->next;
+                    blocks[j].head_queue = tmp;
+                } else {
+                    blocks[j].head_queue = NULL;
+                }
+                double serviceTime = getService(j, s->stream);
+                compl c = {s, INFINITY};
+                s->status = BUSY;
+                c.value = clock.current + serviceTime;
+                blocks[j].jobInQueue--;
+                insertSorted(&global_sorted_completions, c);
+            }
         }
+        global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
     }
+    print_network_status();
+    //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
 }
 
 void deactivate_servers() {

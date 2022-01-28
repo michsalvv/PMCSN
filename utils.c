@@ -35,10 +35,10 @@ int getDestination(enum block_types from) {
     switch (from) {
         case TEMPERATURE_CTRL:
             return routing_from_temperature();
-        case SEASON_GATE:
-            return GREEN_PASS;
         case TICKET_BUY:
             return TICKET_GATE;
+        case SEASON_GATE:
+            return GREEN_PASS;
         case TICKET_GATE:
             return GREEN_PASS;
         case GREEN_PASS:
@@ -149,8 +149,8 @@ void print_completions_status(sorted_completions *compls, struct block blocks[],
     //printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
     printf("TEMPERATURE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
-    printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
-    printf("SEASON_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
+    printf("SEASON_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
+    printf("TICKET_GATE | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
     printf("GREEN_PASS  | Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[4].jobInQueue, blocks[4].total_arrivals, blocks[4].total_completions);
     printf("==============================================================================\n");
 
@@ -212,6 +212,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
     }
 }
 
+// Genera una configurazione di lancio
 network_configuration get_config(int *values_1, int *values_2, int *values_3) {
     network_configuration *config = malloc(sizeof(network_configuration));
     for (int i = 0; i < NUM_BLOCKS; i++) {

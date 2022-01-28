@@ -100,10 +100,11 @@ struct area {
 
 // Blocco
 struct block {
-    struct job *head;
+    struct job *head_service;
     struct job *tail;
-    struct job in_service;
-    //struct job *head_second;
+    struct job *head_queue;
+
+    //struct job in_service;
     //struct job *tail_second;
     // double opening_time;
     double active_time;
@@ -130,5 +131,4 @@ typedef struct {
 
 typedef struct {
     int slot_config[3][NUM_BLOCKS];
-
 } network_configuration;
