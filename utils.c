@@ -143,9 +143,9 @@ int deleteElement(sorted_completions *compls, compl completion) {
     return n - 1;
 }
 
-void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions) {
+void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions, int bypassed) {
     printf("\n==============================================================================\n");
-    printf("Busy Servers: %d | Dropped: %d | Completions: %d\n", compls->num_completions, dropped, completions);
+    printf("Busy Servers: %d | Dropped: %d | Completions: %d | Bypassed: %d\n", compls->num_completions, dropped, completions, bypassed);
     //printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
     printf("TEMPERATURE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInBlock, blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInBlock, blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);

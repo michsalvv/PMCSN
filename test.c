@@ -35,6 +35,7 @@ network_status global_network_status;
 
 int completed = 0;
 int dropped = 0;
+int bypassed = 0;
 
 struct block blocks[NUM_BLOCKS];
 struct clock_t clock;
@@ -50,12 +51,32 @@ void print_network_status() {
     }
 }
 
-int main() {
+int S1 = TIME_SLOT_1;
+int S2 = TIME_SLOT_1 + TIME_SLOT_2;
+int S3 = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+
+int main(int argc, char *argv[]) {
+    int m = atoi(argv[1]);
+    int n = 0;
+
+    switch (m) {
+        case 1:
+            n = S1;
+            break;
+        case 2:;
+            n = S2;
+            break;
+        case 3:;
+            n = S3;
+            break;
+        default:;
+            exit(0);
+    }
     //debug_routing();
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3) {
+    while (clock.arrival <= n) {
         //clearScreen();
         set_time_slot();
         printf(" \n========== NEW STEP ==========\n");
@@ -87,9 +108,9 @@ int main() {
         else {
             process_completion(*nextCompletion);
         }
-        //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+        //print_completions_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
-    print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    print_completions_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     print_network_status();
     print_statistics(&global_network_status, blocks, clock.current);
 }
@@ -240,8 +261,8 @@ void process_completion(compl c) {
         c.server->need_resched = false;
     }
 
+    // Il Job è completato ed esce dal sistema
     if (block_type == GREEN_PASS) {
-        // Il Job è completato ed esce dal sistema
         completed++;
         return;
     }
@@ -254,22 +275,45 @@ void process_completion(compl c) {
         dropped++;
         return;
     }
-    blocks[destination].total_arrivals++;
-    blocks[destination].jobInBlock++;
-    enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+    if (destination != GREEN_PASS) {
+        blocks[destination].total_arrivals++;
+        blocks[destination].jobInBlock++;
+        enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
-    // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
+        // Se il blocco destinatario ha un servente libero, generiamo un tempo di completamento, altrimenti aumentiamo il numero di job in coda
+        freeServer = findFreeServer(blocks[destination]);
+        if (freeServer != NULL) {
+            compl c2 = {freeServer, INFINITY};
+            double service_2 = getService(destination, freeServer->stream);
+            c2.value = clock.current + service_2;
+            insertSorted(&global_sorted_completions, c2);
+            freeServer->status = BUSY;
+            return;
+            // freeServer->sum.service += service_2;
+            // freeServer->sum.served++;
+        } else {
+            blocks[destination].jobInQueue++;
+            return;
+        }
+    }
+
+    // Desination == GREEN_PASS
+    blocks[destination].total_arrivals++;
     freeServer = findFreeServer(blocks[destination]);
     if (freeServer != NULL) {
+        blocks[destination].jobInBlock++;
+        enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
+
         compl c2 = {freeServer, INFINITY};
         double service_2 = getService(destination, freeServer->stream);
         c2.value = clock.current + service_2;
         insertSorted(&global_sorted_completions, c2);
         freeServer->status = BUSY;
-        // freeServer->sum.service += service_2;
-        // freeServer->sum.served++;
+        return;
     } else {
-        blocks[destination].jobInQueue++;
+        completed++;
+        bypassed++;
+        return;
     }
 }
 
@@ -376,8 +420,8 @@ void activate_servers() {
         }
         global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
     }
-    print_network_status();
-    //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    //print_network_status();
+    print_completions_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
 }
 
 void deactivate_servers() {
@@ -397,5 +441,5 @@ void deactivate_servers() {
         global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
     }
     //print_network_status();
-    //print_completions_status(&global_sorted_completions, blocks, dropped, completed);
+    //print_completions_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
 }
