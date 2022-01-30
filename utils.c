@@ -46,24 +46,34 @@ int getDestination(enum block_types from) {
             break;
     }
 }
-/*
-double calculate_cost(int seconds) {
-    // Numero di secondi in un mese sulle 19 ore lavorative
-    float sec_in_month = 60 * 60 * 19 * 30;
-    double temp_c = CM_TEMPERATURE_CTRL_SERVER / sec_in_month * TEMPERATURE_CTRL_SERVERS * seconds;
-    printf("c_temp: %f\n", temp_c);
-    double buy_c = CM_TICKET_BUY_SERVER / sec_in_month * TICKET_BUY_SERVERS * seconds;
-    printf("c_buy: %f\n", buy_c);
-    double ticket_c = CM_TICKET_GATE_SERVER / sec_in_month * TICKET_GATE_SERVERS * seconds;
-    printf("c_tick: %f\n", ticket_c);
-    double season_c = CM_SEASON_GATE_SERVER / sec_in_month * SEASON_GATE_SERVERS * seconds;
-    printf("c_seas: %f\n", season_c);
-    double green_c = CM_GREEN_PASS_SERVER / sec_in_month * GREEN_PASS_SERVERS * seconds;
-    printf("c_green: %f\n", green_c);
 
-    return temp_c + buy_c + ticket_c + season_c + green_c;
+void print_cost_details(network_configuration conf) {
+    int seconds;
+    int slots[] = {TIME_SLOT_1, TIME_SLOT_2, TIME_SLOT_3};
+    for (int slot = 0; slot < 3; slot++) {
+        seconds = slots[slot];
+        printf("\n-- Costo Fascia %d --", slot + 1);
+        // Numero di secondi in un mese sulle 19 ore lavorative
+        float sec_in_month = 60 * 60 * 19 * 30;
+        double temp_c = CM_TEMPERATURE_CTRL_SERVER / sec_in_month * conf.slot_config[slot][TEMPERATURE_CTRL] * seconds;
+        printf("Costo Controllo Temperatura: %f\n", temp_c);
+
+        double buy_c = CM_TICKET_BUY_SERVER / sec_in_month * conf.slot_config[slot][TICKET_BUY] * seconds;
+        printf("Costo Acquisto Biglietti: %f\n", buy_c);
+
+        double ticket_c = CM_TICKET_GATE_SERVER / sec_in_month * conf.slot_config[slot][TICKET_GATE] * seconds;
+        printf("Costo Verifica Biglietti: %f\n", ticket_c);
+
+        double season_c = CM_SEASON_GATE_SERVER / sec_in_month * conf.slot_config[slot][SEASON_GATE] * seconds;
+        printf("Costo Verifica Abbonamenti: %f\n", season_c);
+
+        double green_c = CM_GREEN_PASS_SERVER / sec_in_month * conf.slot_config[slot][GREEN_PASS] * seconds;
+        printf("Costo Verifica Green Pass: %f\n", green_c);
+
+        double total = temp_c + buy_c + ticket_c + season_c + green_c;
+        printf("------ Costo TOTALE: %f\n", total);
+    }
 }
-*/
 
 // Ritorna il minimo tra due valori
 double min(double x, double y) {
@@ -143,23 +153,24 @@ int deleteElement(sorted_completions *compls, compl completion) {
     return n - 1;
 }
 
-void print_completions_status(sorted_completions *compls, struct block blocks[], int dropped, int completions, int bypassed) {
-    printf("\n==============================================================================\n");
+void print_block_status(sorted_completions *compls, struct block blocks[], int dropped, int completions, int bypassed) {
+    printf("\n============================================================================================================\n");
     printf("Busy Servers: %d | Dropped: %d | Completions: %d | Bypassed: %d\n", compls->num_completions, dropped, completions, bypassed);
-    //printf("Total Configuration Cost: %f\n", calculate_cost(TIME_SLOT_1));
     printf("TEMPERATURE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[0].jobInBlock, blocks[0].jobInQueue, blocks[0].total_arrivals, blocks[0].total_completions);
     printf("TICKET_BUY  | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[1].jobInBlock, blocks[1].jobInQueue, blocks[1].total_arrivals, blocks[1].total_completions);
     printf("SEASON_GATE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[2].jobInBlock, blocks[2].jobInQueue, blocks[2].total_arrivals, blocks[2].total_completions);
     printf("TICKET_GATE | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[3].jobInBlock, blocks[3].jobInQueue, blocks[3].total_arrivals, blocks[3].total_completions);
     printf("GREEN_PASS  | Block Job: %d  Enqueued Job: %d  Arrivals: %d  Completions: %d\n", blocks[4].jobInBlock, blocks[4].jobInQueue, blocks[4].total_arrivals, blocks[4].total_completions);
-    printf("==============================================================================\n");
-    /*
+    printf("============================================================================================================\n\n");
+
+    printf("\n");
+}
+
+void print_completion_status(sorted_completions *compls) {
     for (int i = 0; i < compls->num_completions; i++) {
         compl actual = compls->sorted_list[i];
         printf("(%d,%d)  %d  %f\n", actual.server->block->type, actual.server->id, actual.server->status, actual.value);
     }
-    */
-    printf("\n");
 }
 
 void debug_routing() {
@@ -196,10 +207,10 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Number of Servers ................... = %6.2d\n", network->num_online_servers[i]);
         printf("Arrivals ............................ = %6.2d\n", blocks[i].total_arrivals);
         printf("Job in Queue at the end ............. = %6.2d\n", blocks[i].jobInQueue);
-        printf("Average interarrivlas................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
+        printf("Average interarrivals................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
 
-        printf("Average wait ........................ = %6.2f\n", blocks[i].area.node / blocks[i].total_arrivals);
-        printf("Average delay ....................... = %6.2f\n", blocks[i].area.queue / blocks[i].total_arrivals);
+        printf("Average wait ....................... = %6.2f\n", blocks[i].area.queue / blocks[i].total_arrivals);
+        printf("Average delay ........................ = %6.2f\n", blocks[i].area.node / blocks[i].total_arrivals);
         printf("Average service time ................ = %6.2f\n", blocks[i].area.service / blocks[i].total_arrivals);
 
         printf("Average # in the queue .............. = %6.2f\n", blocks[i].area.queue / currentClock);
@@ -233,4 +244,13 @@ network_configuration get_config(int *values_1, int *values_2, int *values_3) {
         config->slot_config[2][i] = values_3[i];
     }
     return *config;
+}
+
+void print_network_status(network_status *network) {
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < network->num_online_servers[j]; i++) {
+            server s = network->server_list[j][i];
+            printf("(%d,%d) | status: {%d,%d} resched: %d\n", s.block->type, s.id, s.status, s.online, s.need_resched);
+        }
+    }
 }

@@ -42,41 +42,33 @@ struct clock_t clock;
 
 double arrival_rate;
 
-void print_network_status() {
-    for (int j = 0; j < NUM_BLOCKS; j++) {
-        for (int i = 0; i < MAX_SERVERS; i++) {
-            server s = global_network_status.server_list[j][i];
-            printf("(%d,%d) | status: {%d,%d} resched: %d\n", s.block->type, s.id, s.status, s.online, s.need_resched);
-        }
-    }
-}
-
 int S1 = TIME_SLOT_1;
 int S2 = TIME_SLOT_1 + TIME_SLOT_2;
 int S3 = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 
 int main(int argc, char *argv[]) {
     int m = atoi(argv[1]);
-    int n = 0;
+    int stop_simulation = 0;
 
-    switch (m) {
-        case 1:
-            n = S1;
-            break;
-        case 2:
-            n = S2;
-            break;
-        case 3:;
-            n = S3;
-            break;
-        default:;
-            exit(0);
+    if (argc == 2) {
+        switch (m) {
+            case 1:
+                stop_simulation = S1;
+                break;
+            case 2:
+                stop_simulation = S2;
+                break;
+            default:
+                stop_simulation = S3;
+        }
+    } else {
+        stop_simulation = S3;
     }
     //debug_routing();
     init_network();
 
     // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= n) {
+    while (clock.arrival <= stop_simulation) {
         //clearScreen();
         set_time_slot();
         printf(" \n========== NEW STEP ==========\n");
@@ -108,16 +100,16 @@ int main(int argc, char *argv[]) {
         else {
             process_completion(*nextCompletion);
         }
-        //print_completions_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
+        //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
-    print_completions_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
-    print_network_status();
+    print_cost_details(config);
+    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
+    //print_network_status(&global_network_status);
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
 /*
 * Genera un tempo di Arrivo secondo la distribuzione specificata
-* //TODO gestire le fascie orarie
 */
 double getArrival(double current) {
     double arrival = current;
@@ -374,76 +366,77 @@ void set_time_slot() {
     if (clock.current < TIME_SLOT_1 && !slot_switched[0]) {
         time_slot = 0;
         arrival_rate = LAMBDA_1;
-        activate_servers();
         slot_switched[0] = true;
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
         time_slot = 1;
         arrival_rate = LAMBDA_2;
-        activate_servers();
         slot_switched[1] = true;
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         time_slot = 2;
         arrival_rate = LAMBDA_3;
-        deactivate_servers();
         slot_switched[2] = true;
     }
+    update_network();
 }
 
-//TODO fare un if per vedere se aumentano o diminuiscono i server e fare activate o deactivate per ogni blocco e a seconda chiamiamo activate o deactivate per quel blocco
+// Aggiorna i serventi attivi al cambio di fascia, attivando o disattivando il numero necessario per ogni blocco
 void update_network() {
-    // for i in blocks
-    //  controllo se aumenta o diminuisce
-    //      activate o deactivate
-    //quindi togliere da deactivate e activate il ciclo esterno sui blocchi
-}
-
-void activate_servers() {
-    int start = 0;
+    int actual, new = 0;
     for (int j = 0; j < NUM_BLOCKS; j++) {
-        start = global_network_status.num_online_servers[j];
-        for (int i = start; i < config.slot_config[time_slot][j]; i++) {
-            server *s = &global_network_status.server_list[j][i];
-            s->online = ONLINE;
-            s->used = USED;
-            if (blocks[j].jobInQueue > 0) {
-                if (blocks[j].head_queue->next != NULL) {
-                    struct job *tmp = blocks[j].head_queue->next;
-                    blocks[j].head_queue = tmp;
-                } else {
-                    blocks[j].head_queue = NULL;
-                }
-                double serviceTime = getService(j, s->stream);
-                compl c = {s, INFINITY};
-                s->status = BUSY;
-                c.value = clock.current + serviceTime;
-                blocks[j].jobInQueue--;
-                insertSorted(&global_sorted_completions, c);
-            }
+        actual = global_network_status.num_online_servers[j];
+        new = config.slot_config[time_slot][j];
+
+        if (actual > new) {
+            deactivate_servers(j);
+        } else if (actual < new) {
+            activate_servers(j);
         }
-        global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
     }
-    //print_network_status();
-    print_completions_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
 }
 
-void deactivate_servers() {
+// Attiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
+void activate_servers(int block) {
     int start = 0;
-    for (int j = 0; j < NUM_BLOCKS; j++) {
-        start = global_network_status.num_online_servers[j];
-
-        for (int i = start - 1; i >= config.slot_config[time_slot][j]; i--) {
-            server *s = &global_network_status.server_list[j][i];
-
-            if (s->status == BUSY) {
-                s->need_resched = true;
+    start = global_network_status.num_online_servers[block];
+    for (int i = start; i < config.slot_config[time_slot][block]; i++) {
+        server *s = &global_network_status.server_list[block][i];
+        s->online = ONLINE;
+        s->used = USED;
+        if (blocks[block].jobInQueue > 0) {
+            if (blocks[block].head_queue->next != NULL) {
+                struct job *tmp = blocks[block].head_queue->next;
+                blocks[block].head_queue = tmp;
             } else {
-                s->online = OFFLINE;
+                blocks[block].head_queue = NULL;
             }
+            double serviceTime = getService(block, s->stream);
+            compl c = {s, INFINITY};
+            s->status = BUSY;
+            c.value = clock.current + serviceTime;
+            blocks[block].jobInQueue--;
+            insertSorted(&global_sorted_completions, c);
         }
-        global_network_status.num_online_servers[j] = config.slot_config[time_slot][j];
+        global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];
     }
     //print_network_status();
-    //print_completions_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
+    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
+}
+
+// Disattiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
+void deactivate_servers(int block) {
+    int start = 0;
+    start = global_network_status.num_online_servers[block];
+
+    for (int i = start - 1; i >= config.slot_config[time_slot][block]; i--) {
+        server *s = &global_network_status.server_list[block][i];
+
+        if (s->status == BUSY) {
+            s->need_resched = true;
+        } else {
+            s->online = OFFLINE;
+        }
+        global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];
+    }
 }
