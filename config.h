@@ -11,6 +11,9 @@
 #define ONLINE 1
 #define OFFLINE 0
 
+#define USED 1
+#define NOTUSED 0
+
 // Input Values
 #define LAMBDA_1 2.888889
 #define LAMBDA_2 4.242424
@@ -81,6 +84,7 @@ typedef struct server_t {
     int id;
     int online;  // {0=OFFLINE, 1=ONLINE}
     int status;  // {0=IDLE, 1=BUSY}
+    int used;    // {0=NOTUSED, 1=USED}     Utilizzata per print_statistic
     int stream;
     struct block *block;
     struct sum sum;

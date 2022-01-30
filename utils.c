@@ -187,7 +187,7 @@ void debug_routing() {
     exit(0);
 }
 
-void print_statistics(network_status *network, struct block blocks[], double currentClock /*.sorted_completions *compls*/) {
+void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls) {
     char type[20];
     for (int i = 0; i < NUM_BLOCKS; i++) {
         strcpy(type, stringFromEnum(blocks[i].type));
@@ -205,9 +205,20 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Average # in the queue .............. = %6.2f\n", blocks[i].area.queue / currentClock);
         printf("Average # in the node ............... = %6.2f\n", blocks[i].area.node / currentClock);
 
-        // for (int j = 0; j < blocks[i].num_server; j++) {
-        //     printf("Utilization of server %d = %f", j, (compls->sorted_list[j].server->sum.service/currentClock);
-        // }
+        printf("\n    server     utilization     avg service\n");
+        // for (s = 1; s <= SERVERS; s++)
+        //     printf("%8d %14.3f %15.2f %15.3f\n", s, sum[s].service / clock.current,
+        //            sum[s].service / sum[s].served,
+        //            (double)sum[s].served / index);
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server s = network->server_list[i][j];
+            if (s.used == 1) {
+                // TODO inserire condizione per non far stampare quelli allocati ma mai utilizzati (tipo temperatura massimo sono 20, non dobbiamo stampare gli altri 30)
+                // printf("Utilization of server %d = %f\n", j, (s.sum.service / currentClock));
+                printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
+            }
+        }
+        printf("\n");
 
         //printf("Utilization ......................... = %6.2f\n", blocks[i].area.service / (currentClock * blocks[i].num_server));
     }

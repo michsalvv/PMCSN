@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
         case 1:
             n = S1;
             break;
-        case 2:;
+        case 2:
             n = S2;
             break;
         case 3:;
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     }
     print_completions_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     print_network_status();
-    print_statistics(&global_network_status, blocks, clock.current);
+    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
 /*
@@ -216,8 +216,8 @@ void process_arrival() {
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
-        // s->sum.service += serviceTime;
-        // s->sum.served++;
+        s->sum.service += serviceTime;
+        s->sum.served++;
         insertSorted(&global_sorted_completions, c);
         enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
     } else {
@@ -248,8 +248,8 @@ void process_completion(compl c) {
         blocks[block_type].jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
         c.value = clock.current + service_1;
-        // c.server->sum.service += service_1;
-        // c.server->sum.served++;
+        c.server->sum.service += service_1;
+        c.server->sum.served++;
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
@@ -288,9 +288,9 @@ void process_completion(compl c) {
             c2.value = clock.current + service_2;
             insertSorted(&global_sorted_completions, c2);
             freeServer->status = BUSY;
+            freeServer->sum.service += service_2;
+            freeServer->sum.served++;
             return;
-            // freeServer->sum.service += service_2;
-            // freeServer->sum.served++;
         } else {
             blocks[destination].jobInQueue++;
             return;
@@ -305,10 +305,12 @@ void process_completion(compl c) {
         enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
         compl c2 = {freeServer, INFINITY};
-        double service_2 = getService(destination, freeServer->stream);
-        c2.value = clock.current + service_2;
+        double service_3 = getService(destination, freeServer->stream);
+        c2.value = clock.current + service_3;
         insertSorted(&global_sorted_completions, c2);
         freeServer->status = BUSY;
+        freeServer->sum.service = service_3;
+        freeServer->sum.served++;
         return;
     } else {
         completed++;
@@ -358,7 +360,8 @@ void init_blocks() {
             s.need_resched = false;
             s.block = &blocks[block_type];
             s.stream = streamID++;
-
+            s.sum.served = 0;
+            s.sum.service = 0.0;
             global_network_status.server_list[block_type][i] = s;
 
             compl c = {&global_network_status.server_list[block_type][i], INFINITY};
@@ -403,6 +406,7 @@ void activate_servers() {
         for (int i = start; i < config.slot_config[time_slot][j]; i++) {
             server *s = &global_network_status.server_list[j][i];
             s->online = ONLINE;
+            s->used = USED;
             if (blocks[j].jobInQueue > 0) {
                 if (blocks[j].head_queue->next != NULL) {
                     struct job *tmp = blocks[j].head_queue->next;
