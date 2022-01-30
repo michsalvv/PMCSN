@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
             if (blocks[i].jobInBlock > 0) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
                 blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-                blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
+                //blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
             }
         }
 
@@ -209,6 +209,7 @@ void process_arrival() {
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
         s->sum.service += serviceTime;
+        s->block->area.service += serviceTime;
         s->sum.served++;
         insertSorted(&global_sorted_completions, c);
         enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
@@ -233,7 +234,7 @@ void process_completion(compl c) {
     dequeue(&blocks[block_type]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
     deleteElement(&global_sorted_completions, c);
 
-    // Se nel blocco temperatura ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
+    // Se nel blocco ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
     if (blocks[block_type].jobInQueue > 0 && !c.server->need_resched) {
         printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
 
@@ -242,6 +243,8 @@ void process_completion(compl c) {
         c.value = clock.current + service_1;
         c.server->sum.service += service_1;
         c.server->sum.served++;
+        c.server->block->area.service += service_1;
+
         insertSorted(&global_sorted_completions, c);
     } else {
         printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
@@ -282,6 +285,8 @@ void process_completion(compl c) {
             freeServer->status = BUSY;
             freeServer->sum.service += service_2;
             freeServer->sum.served++;
+            freeServer->block->area.service += service_2;
+
             return;
         } else {
             blocks[destination].jobInQueue++;
@@ -296,17 +301,20 @@ void process_completion(compl c) {
         blocks[destination].jobInBlock++;
         enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
-        compl c2 = {freeServer, INFINITY};
+        compl c3 = {freeServer, INFINITY};
         double service_3 = getService(destination, freeServer->stream);
-        c2.value = clock.current + service_3;
-        insertSorted(&global_sorted_completions, c2);
+        c3.value = clock.current + service_3;
+        insertSorted(&global_sorted_completions, c3);
         freeServer->status = BUSY;
         freeServer->sum.service = service_3;
         freeServer->sum.served++;
+        freeServer->block->area.service += service_3;
+
         return;
     } else {
         completed++;
         bypassed++;
+        blocks[GREEN_PASS].total_bypassed++;
         return;
     }
 }
@@ -314,17 +322,24 @@ void process_completion(compl c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     printf("Initializing Network\n");
-    PlantSeeds(22111);
+    PlantSeeds(521312312);
     streamID = 0;
     slot_switched[0] = false;
     slot_switched[1] = false;
     slot_switched[2] = false;
 
+    // Config 1
     int slot1_conf[] = {3, 20, 1, 5, 15};
     int slot2_conf[] = {5, 45, 4, 15, 25};
     int slot3_conf[] = {2, 10, 1, 3, 15};
 
-    config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    // Config_2
+    int slot1_conf_2[] = {10, 30, 3, 20, 15};
+    int slot2_conf_2[] = {15, 45, 4, 15, 20};
+    int slot3_conf_2[] = {12, 20, 2, 40, 10};
+
+    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
 
     init_blocks();
     set_time_slot();
@@ -343,6 +358,7 @@ void init_blocks() {
         blocks[block_type].jobInQueue = 0;
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;
+        blocks[block_type].total_bypassed = 0;
 
         for (int i = 0; i < MAX_SERVERS; i++) {
             server s;
@@ -416,6 +432,9 @@ void activate_servers(int block) {
             s->status = BUSY;
             c.value = clock.current + serviceTime;
             blocks[block].jobInQueue--;
+            s->block->area.service += serviceTime;
+            s->sum.service += serviceTime;
+
             insertSorted(&global_sorted_completions, c);
         }
         global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];

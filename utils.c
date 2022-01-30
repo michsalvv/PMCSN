@@ -209,24 +209,21 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Job in Queue at the end ............. = %6.2d\n", blocks[i].jobInQueue);
         printf("Average interarrivals................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
 
-        printf("Average wait ....................... = %6.2f\n", blocks[i].area.queue / blocks[i].total_arrivals);
-        printf("Average delay ........................ = %6.2f\n", blocks[i].area.node / blocks[i].total_arrivals);
-        printf("Average service time ................ = %6.2f\n", blocks[i].area.service / blocks[i].total_arrivals);
+        int real_arrivals = blocks[i].total_arrivals - blocks[i].total_bypassed;
+        printf("Average wait ........................ = %6.2f\n", blocks[i].area.node / real_arrivals);
+        printf("Average delay ....................... = %6.2f\n", blocks[i].area.queue / real_arrivals);
+        printf("Average service time ................ = %6.2f\n", blocks[i].area.service / real_arrivals);
 
         printf("Average # in the queue .............. = %6.2f\n", blocks[i].area.queue / currentClock);
         printf("Average # in the node ............... = %6.2f\n", blocks[i].area.node / currentClock);
 
         printf("\n    server     utilization     avg service\n");
-        // for (s = 1; s <= SERVERS; s++)
-        //     printf("%8d %14.3f %15.2f %15.3f\n", s, sum[s].service / clock.current,
-        //            sum[s].service / sum[s].served,
-        //            (double)sum[s].served / index);
+
         for (int j = 0; j < MAX_SERVERS; j++) {
             server s = network->server_list[i][j];
             if (s.used == 1) {
-                // TODO inserire condizione per non far stampare quelli allocati ma mai utilizzati (tipo temperatura massimo sono 20, non dobbiamo stampare gli altri 30)
-                // printf("Utilization of server %d = %f\n", j, (s.sum.service / currentClock));
-                printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
+                printf("%8d %15.5f %15.2f", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
+                printf("    service: %f | served: %ld\n", s.sum.service, s.sum.served);
             }
         }
         printf("\n");

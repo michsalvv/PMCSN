@@ -108,10 +108,6 @@ struct block {
     struct job *head_service;
     struct job *tail;
     struct job *head_queue;
-
-    //struct job in_service;
-    //struct job *tail_second;
-    // double opening_time;
     double active_time;
     int jobInQueue;
     int jobInBlock;
@@ -119,6 +115,7 @@ struct block {
 
     int total_arrivals;
     int total_completions;
+    int total_bypassed;  // Utilizzato per il blocco GREEN_PASS
     struct area area;
 };
 
