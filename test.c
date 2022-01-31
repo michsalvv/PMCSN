@@ -306,7 +306,7 @@ void process_completion(compl c) {
         c3.value = clock.current + service_3;
         insertSorted(&global_sorted_completions, c3);
         freeServer->status = BUSY;
-        freeServer->sum.service = service_3;
+        freeServer->sum.service += service_3;
         freeServer->sum.served++;
         freeServer->block->area.service += service_3;
 
