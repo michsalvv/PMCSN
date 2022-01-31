@@ -3,7 +3,7 @@
 #define MAX_SERVERS 50
 
 #define START 0.0
-#define DEBUG 0
+#define DEBUG true
 
 #define BUSY 1
 #define IDLE 0
@@ -23,6 +23,11 @@
 #define TIME_SLOT_1 10800
 #define TIME_SLOT_2 39600
 #define TIME_SLOT_3 18000
+
+// Time Slot Values
+#define TIME_SLOT_1_INF TIME_SLOT_1 * 15
+#define TIME_SLOT_2_INF TIME_SLOT_2 * 15
+#define TIME_SLOT_3_INF TIME_SLOT_3 * 15
 
 // Services Time
 #define SERV_TEMPERATURE_CTRL 0.9
@@ -116,6 +121,7 @@ struct block {
     int total_arrivals;
     int total_completions;
     int total_bypassed;  // Utilizzato per il blocco GREEN_PASS
+    double service_rate;
     struct area area;
 };
 

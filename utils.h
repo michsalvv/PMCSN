@@ -14,3 +14,4 @@ static inline char *stringFromEnum(enum block_types f);
 network_configuration get_config(int *values_1, int *values_2, int *values_3);
 void print_network_status(network_status *network);
 double print_cost_details(network_configuration conf);
+void print_percentage(double part, double total, double oldPart);

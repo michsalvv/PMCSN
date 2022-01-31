@@ -114,7 +114,7 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
 
 // Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, compl completion) {
-    printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
+    //printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
 
     int i;
     int n = compls->num_completions;
@@ -131,7 +131,7 @@ int insertSorted(sorted_completions *compls, compl completion) {
 // Function to delete an element
 int deleteElement(sorted_completions *compls, compl completion) {
     // Find position of element to be deleted
-    printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
+    //printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
 
     int n = compls->num_completions;
 
@@ -203,27 +203,37 @@ void print_statistics(network_status *network, struct block blocks[], double cur
     for (int i = 0; i < NUM_BLOCKS; i++) {
         strcpy(type, stringFromEnum(blocks[i].type));
 
+        int m = network->num_online_servers[i];
+        int arr = blocks[i].total_arrivals;
+        int r_arr = arr - blocks[i].total_bypassed;
+        int jq = blocks[i].jobInQueue;
+        int inter = currentClock / blocks[i].total_arrivals;
+
+        double a_rate = blocks[i].total_arrivals / currentClock;
+        double ra_rate = r_arr / currentClock;
+        double s_rate = r_arr / blocks[i].area.service;
+
         printf("\n\n======== Result for block %s ========\n", type);
-        printf("Number of Servers ................... = %6.2d\n", network->num_online_servers[i]);
-        printf("Arrivals ............................ = %6.2d\n", blocks[i].total_arrivals);
-        printf("Job in Queue at the end ............. = %6.2d\n", blocks[i].jobInQueue);
-        printf("Average interarrivals................ = %6.2f\n", currentClock / blocks[i].total_arrivals);
+        printf("Number of Servers ................... = %d\n", m);
+        printf("Arrivals ............................ = %d\n", arr);
+        printf("Job in Queue at the end ............. = %d\n", jq);
+        printf("Average interarrivals................ = %6.6f\n", currentClock / blocks[i].total_arrivals);
 
-        int real_arrivals = blocks[i].total_arrivals - blocks[i].total_bypassed;
-        printf("Average wait ........................ = %6.2f\n", blocks[i].area.node / real_arrivals);
-        printf("Average delay ....................... = %6.2f\n", blocks[i].area.queue / real_arrivals);
-        printf("Average service time ................ = %6.2f\n", blocks[i].area.service / real_arrivals);
+        printf("Average wait ........................ = %6.6f\n", blocks[i].area.node / r_arr);
+        printf("Average delay ....................... = %6.6f\n", blocks[i].area.queue / r_arr);
+        printf("Average service time ................ = %6.6f\n", blocks[i].area.service / r_arr);
 
-        printf("Average # in the queue .............. = %6.2f\n", blocks[i].area.queue / currentClock);
-        printf("Average # in the node ............... = %6.2f\n", blocks[i].area.node / currentClock);
+        printf("Average # in the queue .............. = %6.6f\n", blocks[i].area.queue / currentClock);
+        printf("Average # in the node ............... = %6.6f\n", blocks[i].area.node / currentClock);
+
+        printf("Average utilization of the node ..... = %1.6f\n", ra_rate / (m * s_rate));
 
         printf("\n    server     utilization     avg service\n");
 
         for (int j = 0; j < MAX_SERVERS; j++) {
             server s = network->server_list[i][j];
             if (s.used == 1) {
-                printf("%8d %15.5f %15.2f", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
-                printf("    service: %f | served: %ld\n", s.sum.service, s.sum.served);
+                printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
             }
         }
         printf("\n");
@@ -250,4 +260,25 @@ void print_network_status(network_status *network) {
             printf("(%d,%d) | status: {%d,%d} resched: %d\n", s.block->type, s.id, s.status, s.online, s.need_resched);
         }
     }
+}
+
+// Stampa una barra di avanzamento relativa all'invio/ricezione del file
+void print_percentage(double part, double total, double oldPart) {
+    double percentage = part / total * 100;
+    double oldPercentage = oldPart / total * 100;
+
+    if ((int)oldPercentage == (int)percentage) {
+        return;
+    }
+
+    printf("\rSimulation Progress: |");
+    for (int i = 0; i <= percentage / 2; i++) {
+        printf("█");
+        fflush(stdout);
+    }
+    for (int j = percentage / 2; j < 50; j++) {
+        printf("—");
+    }
+    printf("|");
+    printf(" %02.0f%%", percentage);
 }

@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "DES/rngs.h"
@@ -24,6 +26,9 @@ void activate_servers();
 void deactivate_servers();
 void update_network();
 
+void finite_horizon_simulation(int stop);
+void infinite_horizon_simulation(int slot);
+
 int time_slot;
 bool slot_switched[3];
 network_configuration config;
@@ -46,37 +51,55 @@ int S1 = TIME_SLOT_1;
 int S2 = TIME_SLOT_1 + TIME_SLOT_2;
 int S3 = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 
+int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
+double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
+
+int stop_simulation = 0;
+char *simulation_mode;
+int num_slot;
+
 int main(int argc, char *argv[]) {
-    int m = atoi(argv[1]);
-    int stop_simulation = 0;
-
-    if (argc == 2) {
-        switch (m) {
-            case 1:
-                stop_simulation = S1;
-                break;
-            case 2:
-                stop_simulation = S2;
-                break;
-            default:
-                stop_simulation = S3;
-        }
-    } else {
+    if (argc != 3) {
+        printf("Default Simultation\n");
         stop_simulation = S3;
+        finite_horizon_simulation(stop_simulation);
+        exit(0);
     }
-    //debug_routing();
-    init_network();
+    simulation_mode = argv[1];
+    num_slot = atoi(argv[2]);
 
-    // Gestione degli arrivi e dei completamenti
-    while (clock.arrival <= stop_simulation) {
+    switch (num_slot) {
+        case 1:
+            stop_simulation = S1;
+            break;
+        case 2:
+            stop_simulation = S2;
+            break;
+        default:
+            stop_simulation = S3;
+    }
+    if (strcmp(simulation_mode, "FINITE") == 0) {
+        finite_horizon_simulation(stop_simulation);
+    } else if (strcmp(simulation_mode, "INFINITE") == 0) {
+        infinite_horizon_simulation(num_slot);
+    }
+}
+
+void finite_horizon_simulation(int stop_time) {
+    printf("==== Finite Horizon Simulation for sim time %d ====\n", stop_time);
+    init_network();
+    double old = 0;
+    while (clock.arrival <= stop_time) {
+        print_percentage(clock.current, stop_time, old);
+        old = clock.current;
         //clearScreen();
         set_time_slot();
-        printf(" \n========== NEW STEP ==========\n");
-        printf("Prossimo arrivo: %f\n", clock.arrival);
-        printf("Clock corrente: %f\n", clock.current);
+        //printf(" \n========== NEW STEP ==========\n");
+        //printf("Prossimo arrivo: %f\n", clock.arrival);
+        //printf("Clock corrente: %f\n", clock.current);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
+        //printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
 
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
 
@@ -89,7 +112,7 @@ int main(int argc, char *argv[]) {
         }
 
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
-        printf("Clock next Event: %f\n", clock.next);
+        //printf("Clock next Event: %f\n", clock.next);
 
         // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
@@ -103,6 +126,53 @@ int main(int argc, char *argv[]) {
         //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
     print_cost_details(config);
+    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
+    //print_network_status(&global_network_status);
+    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+}
+
+void infinite_horizon_simulation(int slot) {
+    printf("==== Infinite Horizon Simulation for slot %d ====\n", slot + 1);
+    time_slot = slot;
+    arrival_rate = lambdas[slot];
+    init_network();
+    update_network();
+    int simulation_time = infinites[slot];
+    double old;
+    while (clock.arrival <= simulation_time) {
+        print_percentage(clock.current, simulation_time, old);
+        old = clock.current;
+        //clearScreen();
+        // printf(" \n========== NEW STEP ==========\n");
+        // printf("Prossimo arrivo: %f\n", clock.arrival);
+        // printf("Clock corrente: %f\n", clock.current);
+        compl *nextCompletion = &global_sorted_completions.sorted_list[0];
+        server *nextCompletionServer = nextCompletion->server;
+        // printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
+
+        clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            if (blocks[i].jobInBlock > 0) {
+                blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
+                blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
+                //blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
+            }
+        }
+        clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
+        //printf("Clock next Event: %f\n", clock.next);
+
+        // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
+        if (clock.current == clock.arrival) {
+            process_arrival();
+        }
+
+        // Gestione Completamento
+        else {
+            process_completion(*nextCompletion);
+        }
+        //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
+    }
     print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     //print_network_status(&global_network_status);
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
@@ -195,7 +265,7 @@ double getService(enum block_types type, int stream) {
 Processa un arrivo dall'esterno
 */
 void process_arrival() {
-    printf("\nProcessamento di un Arrivo dall'esterno\n");
+    //printf("\nProcessamento di un Arrivo dall'esterno\n");
     blocks[TEMPERATURE_CTRL].total_arrivals++;
     blocks[TEMPERATURE_CTRL].jobInBlock++;
 
@@ -203,7 +273,7 @@ void process_arrival() {
 
     // C'è un servente libero, quindi genero il completamento
     if (s != NULL) {
-        printf("C'è un servente libero nel controllo temperatura: %d\n", s->id);
+        //printf("C'è un servente libero nel controllo temperatura: %d\n", s->id);
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
@@ -215,7 +285,7 @@ void process_arrival() {
         enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
     } else {
         enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
-        printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
+        //printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
         blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
     }
     clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
@@ -229,14 +299,14 @@ void process_completion(compl c) {
 
     int destination;
     server *freeServer;
-    printf("\nProcessamento di un Completamento sul Blocco #%d\n", block_type);
+    //printf("\nProcessamento di un Completamento sul Blocco #%d\n", block_type);
 
     dequeue(&blocks[block_type]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
     deleteElement(&global_sorted_completions, c);
 
     // Se nel blocco ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
     if (blocks[block_type].jobInQueue > 0 && !c.server->need_resched) {
-        printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
+        //printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
 
         blocks[block_type].jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
@@ -247,7 +317,7 @@ void process_completion(compl c) {
 
         insertSorted(&global_sorted_completions, c);
     } else {
-        printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
+        //printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
         c.server->status = IDLE;
     }
 
@@ -264,7 +334,7 @@ void process_completion(compl c) {
 
     // Gestione blocco destinazione
     destination = getDestination(c.server->block->type);  // Trova la destinazione adatta per il job appena servito
-    printf("Inoltro il job al blocco destinatario: #%d\n", destination);
+    //printf("Inoltro il job al blocco destinatario: #%d\n", destination);
     if (destination == EXIT) {
         // Il job viene scartato
         dropped++;
@@ -321,7 +391,7 @@ void process_completion(compl c) {
 
 // Inizializza tutti i blocchi del sistema
 void init_network() {
-    printf("Initializing Network\n");
+    //printf("Initializing Network\n");
     PlantSeeds(521312312);
     streamID = 0;
     slot_switched[0] = false;
@@ -342,7 +412,10 @@ void init_network() {
     config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
 
     init_blocks();
-    set_time_slot();
+
+    if (strcmp(simulation_mode, "FINITE") == 0) {
+        set_time_slot();
+    }
 
     clock.current = START;
     clock.arrival = getArrival(clock.current);
@@ -351,7 +424,7 @@ void init_network() {
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
 void init_blocks() {
-    printf("Initilizing servers\n");
+    //printf("Initilizing servers\n");
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         blocks[block_type].type = block_type;
         blocks[block_type].jobInBlock = 0;
@@ -399,11 +472,11 @@ void set_time_slot() {
 
 // Aggiorna i serventi attivi al cambio di fascia, attivando o disattivando il numero necessario per ogni blocco
 void update_network() {
+    //printf("Updating Online Servers\n");
     int actual, new = 0;
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
         new = config.slot_config[time_slot][j];
-
         if (actual > new) {
             deactivate_servers(j);
         } else if (actual < new) {
@@ -439,8 +512,6 @@ void activate_servers(int block) {
         }
         global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];
     }
-    //print_network_status();
-    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
 }
 
 // Disattiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
