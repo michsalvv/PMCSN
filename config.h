@@ -99,6 +99,7 @@ typedef struct server_t {
 typedef struct {
     server server_list[NUM_BLOCKS][MAX_SERVERS];
     int num_online_servers[NUM_BLOCKS];
+    int time_slot;
 
 } network_status;
 

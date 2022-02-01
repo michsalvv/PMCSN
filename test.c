@@ -25,11 +25,11 @@ void set_time_slot();
 void activate_servers();
 void deactivate_servers();
 void update_network();
+void repeat_finite(int stop_time, int repetitions);
 
-void finite_horizon_simulation(int stop);
+void finite_horizon_simulation(int stop, int repetition);
 void infinite_horizon_simulation(int slot);
 
-int time_slot;
 bool slot_switched[3];
 network_configuration config;
 
@@ -37,6 +37,9 @@ int streamID;                                  // Stream da selezionare per gene
 server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 network_status global_network_status;
+
+static const sorted_completions empty_sorted;
+static const network_status empty_network;
 
 int completed = 0;
 int dropped = 0;
@@ -58,11 +61,60 @@ int stop_simulation = 0;
 char *simulation_mode;
 int num_slot;
 
-int main(int argc, char *argv[]) {
+//TODO iniziare con il metodo della replicazione per lo stato finito. Metterer un parametro da argv che è il numero di run.
+//TODO iniziare con il batch means per lo stato infinito. Vedere b e k come si dimensionano e togliere il alore TIME_SLOT*15 e mettere insomma i batch.
+
+// Resetta l'ambiente di esecuzione tra due run ad orizzonte finito
+void clear_environment() {
+    global_sorted_completions = empty_sorted;
+    global_network_status = empty_network;
+
+    // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        blocks[block_type].area.node = 0;
+        blocks[block_type].area.service = 0;
+        blocks[block_type].area.queue = 0;
+    }
+}
+
+void init_config() {
+    // Config 1
+    int slot1_conf[] = {3, 20, 1, 5, 15};
+    int slot2_conf[] = {5, 45, 4, 15, 25};
+    int slot3_conf[] = {2, 10, 1, 3, 15};
+
+    // Config_2
+    int slot1_conf_2[] = {10, 30, 3, 20, 15};
+    int slot2_conf_2[] = {15, 45, 4, 15, 20};
+    int slot3_conf_2[] = {12, 20, 2, 40, 10};
+
+    config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+}
+
+void print_configuration() {
+    for (int slot = 0; slot < 3; slot++) {
+        printf("FASCIA #%d\n", slot);
+        for (int block = 0; block < NUM_BLOCKS; block++) {
+            printf("...%s: %d\n", stringFromEnum(block), config.slot_config[slot][block]);
+        }
+        printf("\n");
+    }
+}
+
+int main() {
+    PlantSeeds(521312312);
+    simulation_mode = "FINITE";
+    num_slot = 3;
+    repeat_finite(S3, 64);
+}
+
+int main_2(int argc, char *argv[]) {
+    PlantSeeds(521312312);
     if (argc != 3) {
         printf("Default Simultation\n");
         stop_simulation = S3;
-        finite_horizon_simulation(stop_simulation);
+        finite_horizon_simulation(stop_simulation, 0);
         exit(0);
     }
     simulation_mode = argv[1];
@@ -78,15 +130,24 @@ int main(int argc, char *argv[]) {
         default:
             stop_simulation = S3;
     }
-    if (strcmp(simulation_mode, "FINITE") == 0) {
-        finite_horizon_simulation(stop_simulation);
-    } else if (strcmp(simulation_mode, "INFINITE") == 0) {
-        infinite_horizon_simulation(num_slot);
+    if (str_compare(simulation_mode, "FINITE") == 0) {
+        repeat_finite(stop_simulation, 64);
+        //finite_horizon_simulation(stop_simulation);
+    } else if (str_compare(simulation_mode, "INFINITE") == 0) {
+        //infinite_horizon_simulation(num_slot);
     }
 }
 
-void finite_horizon_simulation(int stop_time) {
-    printf("==== Finite Horizon Simulation for sim time %d ====\n", stop_time);
+void repeat_finite(int stop_time, int repetitions) {
+    init_config();
+    print_configuration();
+    for (int r = 1; r <= repetitions; r++) {
+        finite_horizon_simulation(stop_time, r);
+    }
+}
+
+void finite_horizon_simulation(int stop_time, int repetition) {
+    printf("\n\n==== Finite Horizon Simulation | sim_time %d | repetition #%d====\n", stop_time, repetition);
     init_network();
     double old = 0;
     while (clock.arrival <= stop_time) {
@@ -125,17 +186,18 @@ void finite_horizon_simulation(int stop_time) {
         }
         //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
-    print_cost_details(config);
-    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
+    //print_cost_details(config);
+    //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     //print_network_status(&global_network_status);
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+    clear_environment();
 }
 
 void infinite_horizon_simulation(int slot) {
-    printf("==== Infinite Horizon Simulation for slot %d ====\n", slot + 1);
-    time_slot = slot;
+    printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot + 1);
     arrival_rate = lambdas[slot];
     init_network();
+    global_network_status.time_slot = slot;
     update_network();
     int simulation_time = infinites[slot];
     double old;
@@ -392,32 +454,19 @@ void process_completion(compl c) {
 // Inizializza tutti i blocchi del sistema
 void init_network() {
     //printf("Initializing Network\n");
-    PlantSeeds(521312312);
     streamID = 0;
+    clock.current = START;
+
     slot_switched[0] = false;
     slot_switched[1] = false;
     slot_switched[2] = false;
 
-    // Config 1
-    int slot1_conf[] = {3, 20, 1, 5, 15};
-    int slot2_conf[] = {5, 45, 4, 15, 25};
-    int slot3_conf[] = {2, 10, 1, 3, 15};
-
-    // Config_2
-    int slot1_conf_2[] = {10, 30, 3, 20, 15};
-    int slot2_conf_2[] = {15, 45, 4, 15, 20};
-    int slot3_conf_2[] = {12, 20, 2, 40, 10};
-
-    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-
     init_blocks();
 
-    if (strcmp(simulation_mode, "FINITE") == 0) {
+    if (str_compare(simulation_mode, "FINITE") == 0) {
         set_time_slot();
     }
 
-    clock.current = START;
     clock.arrival = getArrival(clock.current);
     global_sorted_completions.num_completions = 0;
 }
@@ -432,6 +481,9 @@ void init_blocks() {
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;
         blocks[block_type].total_bypassed = 0;
+        blocks[block_type].area.node = 0;
+        blocks[block_type].area.service = 0;
+        blocks[block_type].area.queue = 0;
 
         for (int i = 0; i < MAX_SERVERS; i++) {
             server s;
@@ -452,31 +504,39 @@ void init_blocks() {
 }
 
 void set_time_slot() {
-    if (clock.current < TIME_SLOT_1 && !slot_switched[0]) {
-        time_slot = 0;
+    if (clock.current == START) {
+        global_network_status.time_slot = 0;
         arrival_rate = LAMBDA_1;
         slot_switched[0] = true;
+        update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        time_slot = 1;
+        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+
+        global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
         slot_switched[1] = true;
+        update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        time_slot = 2;
+        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+
+        global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
+        update_network();
     }
-    update_network();
 }
 
 // Aggiorna i serventi attivi al cambio di fascia, attivando o disattivando il numero necessario per ogni blocco
 void update_network() {
     //printf("Updating Online Servers\n");
     int actual, new = 0;
+    int slot = global_network_status.time_slot;
+
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
-        new = config.slot_config[time_slot][j];
+        new = config.slot_config[slot][j];
         if (actual > new) {
             deactivate_servers(j);
         } else if (actual < new) {
@@ -488,8 +548,10 @@ void update_network() {
 // Attiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
 void activate_servers(int block) {
     int start = 0;
+    int slot = global_network_status.time_slot;
+
     start = global_network_status.num_online_servers[block];
-    for (int i = start; i < config.slot_config[time_slot][block]; i++) {
+    for (int i = start; i < config.slot_config[slot][block]; i++) {
         server *s = &global_network_status.server_list[block][i];
         s->online = ONLINE;
         s->used = USED;
@@ -510,16 +572,17 @@ void activate_servers(int block) {
 
             insertSorted(&global_sorted_completions, c);
         }
-        global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];
+        global_network_status.num_online_servers[block] = config.slot_config[slot][block];
     }
 }
 
 // Disattiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
 void deactivate_servers(int block) {
     int start = 0;
+    int slot = global_network_status.time_slot;
     start = global_network_status.num_online_servers[block];
 
-    for (int i = start - 1; i >= config.slot_config[time_slot][block]; i--) {
+    for (int i = start - 1; i >= config.slot_config[slot][block]; i--) {
         server *s = &global_network_status.server_list[block][i];
 
         if (s->status == BUSY) {
@@ -527,6 +590,6 @@ void deactivate_servers(int block) {
         } else {
             s->online = OFFLINE;
         }
-        global_network_status.num_online_servers[block] = config.slot_config[time_slot][block];
+        global_network_status.num_online_servers[block] = config.slot_config[slot][block];
     }
 }
