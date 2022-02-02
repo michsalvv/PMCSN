@@ -61,16 +61,16 @@ int getDestination(enum block_types from) {
     }
 }
 
-void print_real_cost(network_status net) {
+void print_real_cost(network_status *net) {
     double cm_costs[] = {CM_TEMPERATURE_CTRL_SERVER, CM_TICKET_BUY_SERVER, CM_SEASON_GATE_SERVER, CM_TICKET_GATE_SERVER, CM_GREEN_PASS_SERVER};
-    double costs[5];
+    double costs[5] = {0, 0, 0, 0, 0};
     double total = 0;
     float sec_in_month = 60 * 60 * 19 * 30;
     print_line();
     printf("Analisi Costi\n");
     for (int j = 0; j < NUM_BLOCKS; j++) {
         for (int i = 0; i < MAX_SERVERS; i++) {
-            server s = net.server_list[j][i];
+            server s = net->server_list[j][i];
             costs[j] += s.time_online * (cm_costs[j] / sec_in_month);
         }
         total += costs[j];

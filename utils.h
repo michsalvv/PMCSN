@@ -22,4 +22,4 @@ FILE *open_csv(char *filename);
 
 void *append_on_csv(FILE *fpt, int rep, double ts, double p);
 
-void print_real_cost(network_status net);
+void print_real_cost(network_status *net);

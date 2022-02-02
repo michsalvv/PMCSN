@@ -29,6 +29,7 @@ void repeat_finite(int stop_time, int repetitions);
 
 void finite_horizon_simulation(int stop, int repetition);
 void infinite_horizon_simulation(int slot);
+void end_servers();
 
 bool slot_switched[3];
 network_configuration config;
@@ -80,22 +81,6 @@ void clear_environment() {
     }
 }
 
-void print_debug_rt() {
-    double total0 = 0;
-    double total1 = 0;
-    double total2 = 0;
-    for (int i = 0; i < NUM_REPETITIONS; i++) {
-        total0 += statistics[i][0];
-        total1 += statistics[i][1];
-        total2 += statistics[i][2];
-    }
-    print_line();
-    print_line();
-    printf("slot #1: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total0 / NUM_REPETITIONS, total0 / NUM_REPETITIONS / 60);
-    printf("slot #2: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total1 / NUM_REPETITIONS, total1 / NUM_REPETITIONS / 60);
-    printf("slot #3: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total2 / NUM_REPETITIONS, total2 / NUM_REPETITIONS / 60);
-}
-
 void write_rt_on_csv() {
     FILE *csv;
     char filename[13];
@@ -106,18 +91,6 @@ void write_rt_on_csv() {
             append_on_csv(csv, i, statistics[i][j], 0);
         }
         fclose(csv);
-    }
-}
-
-void end_servers() {
-    for (int j = 0; j < NUM_BLOCKS; j++) {
-        for (int i = 0; i < MAX_SERVERS; i++) {
-            server *s = &global_network_status.server_list[j][i];
-            if (s->online == ONLINE) {
-                s->time_online += (clock.current - s->last_online);
-                s->last_online = clock.current;
-            }
-        }
     }
 }
 
@@ -162,7 +135,6 @@ void print_configuration() {
         }
         printf("\n");
     }
-    print_cost_theor(config);
 }
 
 int main(int argc, char *argv[]) {
@@ -194,7 +166,6 @@ int main(int argc, char *argv[]) {
     if (str_compare(simulation_mode, "FINITE") == 0) {
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
-        print_debug_rt();
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         infinite_horizon_simulation(num_slot);
     }
@@ -216,52 +187,35 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     while (clock.arrival <= stop_time) {
         print_percentage(clock.current, stop_time, old);
         old = clock.current;
-        //clearScreen();
         set_time_slot();
-        //printf(" \n========== NEW STEP ==========\n");
-        //printf("Prossimo arrivo: %f\n", clock.arrival);
-        //printf("Clock corrente: %f\n", clock.current);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        //printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
-
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
 
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (blocks[i].jobInBlock > 0) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
                 blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-                //blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
+                //blocks[i].area.service += (clock.next - clock.current);  //TODO Da togliere?? Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
             }
         }
-
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
-        //printf("Clock next Event: %f\n", clock.next);
 
-        // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
             process_arrival();
-        }
-
-        // Gestione Completamento
-        else {
+        } else {
             process_completion(*nextCompletion);
         }
-        //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
-    //print_cost_theor(config);
-    //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
-    //print_network_status(&global_network_status);
     end_servers();
-    print_network_status(&global_network_status);
-    print_real_cost(global_network_status);
+    print_real_cost(&global_network_status);
     //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
-    //calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
-    //print_line();
-    //for (int i = 0; i < 3; i++) {
-    //  printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
-    //statistics[repetition][i] = response_times[i];
-    //}
+    calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+    print_line();
+    for (int i = 0; i < 3; i++) {
+        printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
+        statistics[repetition][i] = response_times[i];
+    }
     clear_environment();
 }
 
@@ -277,44 +231,30 @@ void infinite_horizon_simulation(int slot) {
     while (clock.arrival <= simulation_time) {
         print_percentage(clock.current, simulation_time, old);
         old = clock.current;
-        //clearScreen();
-        // printf(" \n========== NEW STEP ==========\n");
-        // printf("Prossimo arrivo: %f\n", clock.arrival);
-        // printf("Clock corrente: %f\n", clock.current);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        // printf("Next Completion: (%d,%d),%f\n", nextCompletion->server->block->type, nextCompletion->server->id, nextCompletion->value);
-
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
 
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (blocks[i].jobInBlock > 0) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
                 blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-                //blocks[i].area.service += (clock.next - clock.current);  //TODO Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
+                //blocks[i].area.service += (clock.next - clock.current);  //TODO Da togliere ?? Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
             }
         }
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
-        //printf("Clock next Event: %f\n", clock.next);
-
-        // Gestione arrivo dall'esterno, quindi in TEMPERATURE_CTRL
         if (clock.current == clock.arrival) {
             process_arrival();
-        }
-
-        // Gestione Completamento
-        else {
+        } else {
             process_completion(*nextCompletion);
         }
-        //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
     print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
-    //print_network_status(&global_network_status);
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
 /*
-* Genera un tempo di Arrivo secondo la distribuzione specificata
+* Genera un tempo di Arrivo secondo la distribuzione di Poisson
 */
 double getArrival(double current) {
     double arrival = current;
@@ -356,16 +296,13 @@ struct job dequeue(struct block *block) {
     if (block->head_queue != NULL && block->head_queue->next != NULL) {
         struct job *tmp = block->head_queue->next;
         block->head_queue = tmp;
-    }
-
-    else {
+    } else {
         block->head_queue = NULL;
     }
-
     free(j);
 }
 
-// Ritorna un server libero nella Linked List del blocco
+// Ritorna il primo server libero nel blocco specificato
 server *findFreeServer(struct block b) {
     int block_type = b.type;
     int active_servers = global_network_status.num_online_servers[block_type];
@@ -397,10 +334,9 @@ double getService(enum block_types type, int stream) {
     }
 }
 /*
-Processa un arrivo dall'esterno
+Processa un arrivo dall'esterno verso il sistema
 */
 void process_arrival() {
-    //printf("\nProcessamento di un Arrivo dall'esterno\n");
     blocks[TEMPERATURE_CTRL].total_arrivals++;
     blocks[TEMPERATURE_CTRL].jobInBlock++;
 
@@ -408,7 +344,6 @@ void process_arrival() {
 
     // C'è un servente libero, quindi genero il completamento
     if (s != NULL) {
-        //printf("C'è un servente libero nel controllo temperatura: %d\n", s->id);
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
@@ -417,11 +352,10 @@ void process_arrival() {
         s->block->area.service += serviceTime;
         s->sum.served++;
         insertSorted(&global_sorted_completions, c);
-        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
+        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella linked list di job del blocco TEMP
     } else {
-        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella coda del blocco TEMP
-        //printf("Tutti i serventi nel controllo temperatura sono BUSY. Job accodato\n");
-        blocks[TEMPERATURE_CTRL].jobInQueue++;  // Se non c'è un servente libero aumenta il numero di job in coda
+        enqueue(&blocks[TEMPERATURE_CTRL], clock.arrival);  // lo appendo nella linked list di job del blocco TEMP
+        blocks[TEMPERATURE_CTRL].jobInQueue++;              // Se non c'è un servente libero aumenta il numero di job in coda
     }
     clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
 }
@@ -434,28 +368,25 @@ void process_completion(compl c) {
 
     int destination;
     server *freeServer;
-    //printf("\nProcessamento di un Completamento sul Blocco #%d\n", block_type);
 
     dequeue(&blocks[block_type]);  // Toglie il job servito dal blocco e fa "avanzare" la lista collegata di job
     deleteElement(&global_sorted_completions, c);
 
     // Se nel blocco ci sono job in coda, devo generare il prossimo completamento per il servente che si è liberato.
     if (blocks[block_type].jobInQueue > 0 && !c.server->need_resched) {
-        //printf("C'è un job in coda nel blocco %d. Il server %d và in BUSY\n", c.server->block->type, c.server->id);
-
         blocks[block_type].jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
         c.value = clock.current + service_1;
         c.server->sum.service += service_1;
         c.server->sum.served++;
         c.server->block->area.service += service_1;
-
         insertSorted(&global_sorted_completions, c);
+
     } else {
-        //printf("Nessun job in coda nel blocco %d. Il server %d và in IDLE\n", c.server->block->type, c.server->id);
         c.server->status = IDLE;
     }
 
+    // Se un server è schedulato per la terminazione, non prende un job dalla coda e và OFFLINE
     if (c.server->need_resched) {
         c.server->online = OFFLINE;
         c.server->time_online += (clock.current - c.server->last_online);
@@ -463,7 +394,7 @@ void process_completion(compl c) {
         c.server->need_resched = false;
     }
 
-    // Il Job è completato ed esce dal sistema
+    // Se il completamento avviene sul blocco GREEN PASS allora il job esce dal sistema
     if (block_type == GREEN_PASS) {
         completed++;
         return;
@@ -471,9 +402,7 @@ void process_completion(compl c) {
 
     // Gestione blocco destinazione
     destination = getDestination(c.server->block->type);  // Trova la destinazione adatta per il job appena servito
-    //printf("Inoltro il job al blocco destinatario: #%d\n", destination);
     if (destination == EXIT) {
-        // Il job viene scartato
         dropped++;
         return;
     }
@@ -501,7 +430,7 @@ void process_completion(compl c) {
         }
     }
 
-    // Desination == GREEN_PASS
+    // Desination == GREEN_PASS. Se non ci sono serventi liberi il job esce dal sistema (loss system)
     blocks[destination].total_arrivals++;
     freeServer = findFreeServer(blocks[destination]);
     if (freeServer != NULL) {
@@ -516,8 +445,8 @@ void process_completion(compl c) {
         freeServer->sum.service += service_3;
         freeServer->sum.served++;
         freeServer->block->area.service += service_3;
-
         return;
+
     } else {
         completed++;
         bypassed++;
@@ -578,6 +507,7 @@ void init_blocks() {
     }
 }
 
+// Cambia la fascia oraria settando il tasso di arrivo ed attivando/disattivando i server necessari
 void set_time_slot() {
     if (clock.current == START) {
         global_network_status.time_slot = 0;
@@ -666,5 +596,18 @@ void deactivate_servers(int block) {
             s->last_online = clock.current;
         }
         global_network_status.num_online_servers[block] = config.slot_config[slot][block];
+    }
+}
+
+// Calcola il tempo online per i server al termine della simulazione
+void end_servers() {
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server *s = &global_network_status.server_list[j][i];
+            if (s->online == ONLINE) {
+                s->time_online += (clock.current - s->last_online);
+                s->last_online = clock.current;
+            }
+        }
     }
 }
