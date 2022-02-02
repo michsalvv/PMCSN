@@ -233,12 +233,9 @@ void infinite_horizon_simulation(int slot, int b, int k) {
 
     calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
     reset_statistics();
-
-    //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
-    //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
-//Processa un arrivo dall'esterno verso il sistema
+// Processa un arrivo dall'esterno verso il sistema
 void process_arrival() {
     blocks[TEMPERATURE_CTRL].total_arrivals++;
     blocks[TEMPERATURE_CTRL].jobInBlock++;
