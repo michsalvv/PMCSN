@@ -11,9 +11,14 @@
 #include "math.h"
 #include "utils.h"
 
+//TODO iniziare con il metodo della replicazione per lo stato finito. Metterer un parametro da argv che è il numero di run.
+//TODO iniziare con il batch means per lo stato infinito. Vedere b e k come si dimensionano e togliere il alore TIME_SLOT*15 e mettere insomma i batch.
+
+// Function Prototypes
+// ------------------------------------------------------------------------------------------------
 double getArrival(double current);
 void enqueue(struct block *block, double arrival);
-struct job dequeue(struct block *block);
+void dequeue(struct block *block);
 server *findFreeServer(struct block b);
 double findNextEvent(double nextArrival, struct block *services, server **server_completion);
 double getService(enum block_types type, int stream);
@@ -26,34 +31,33 @@ void activate_servers();
 void deactivate_servers();
 void update_network();
 void repeat_finite(int stop_time, int repetitions);
-
 void finite_horizon_simulation(int stop, int repetition);
 void infinite_horizon_simulation(int slot);
 void end_servers();
-
-bool slot_switched[3];
+void clear_environment();
+void write_rt_on_csv();
+void init_config();
+// ------------------------------------------------------------------------------------------------
 network_configuration config;
-
-int streamID;                                  // Stream da selezionare per generare il tempo di servizio
-server *nextCompletion;                        // Tiene traccia del server relativo al completamento imminente
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 network_status global_network_status;
-
 static const sorted_completions empty_sorted;
 static const network_status empty_network;
+
+struct block blocks[NUM_BLOCKS];
+
+bool slot_switched[3];
+
+int streamID;            // Stream da selezionare per generare il tempo di servizio
+server *nextCompletion;  // Tiene traccia del server relativo al completamento imminente
 
 int completed = 0;
 int dropped = 0;
 int bypassed = 0;
 
-struct block blocks[NUM_BLOCKS];
 struct clock_t clock;
 
 double arrival_rate;
-
-int S1 = TIME_SLOT_1;
-int S2 = TIME_SLOT_1 + TIME_SLOT_2;
-int S3 = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 
 int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
 double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
@@ -65,85 +69,10 @@ int num_slot;
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
 
-//TODO iniziare con il metodo della replicazione per lo stato finito. Metterer un parametro da argv che è il numero di run.
-//TODO iniziare con il batch means per lo stato infinito. Vedere b e k come si dimensionano e togliere il alore TIME_SLOT*15 e mettere insomma i batch.
-
-// Resetta l'ambiente di esecuzione tra due run ad orizzonte finito
-void clear_environment() {
-    global_sorted_completions = empty_sorted;
-    global_network_status = empty_network;
-
-    // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
-    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
-        blocks[block_type].area.node = 0;
-        blocks[block_type].area.service = 0;
-        blocks[block_type].area.queue = 0;
-    }
-}
-
-void write_rt_on_csv() {
-    FILE *csv;
-    char filename[13];
-    for (int j = 0; j < 3; j++) {
-        snprintf(filename, 13, "rt_slot%d.csv", j);
-        csv = open_csv(filename);
-        for (int i = 0; i < NUM_REPETITIONS; i++) {
-            append_on_csv(csv, i, statistics[i][j], 0);
-        }
-        fclose(csv);
-    }
-}
-
-void init_config() {
-    // Config 1
-    int slot1_conf[] = {3, 20, 1, 5, 15};
-    int slot2_conf[] = {5, 45, 4, 15, 25};
-    int slot3_conf[] = {2, 10, 1, 3, 15};
-
-    // Config_2
-    int slot1_conf_2[] = {10, 30, 3, 20, 15};
-    int slot2_conf_2[] = {15, 45, 4, 15, 20};
-    int slot3_conf_2[] = {12, 20, 2, 40, 10};
-
-    // Config_3
-    int slot1_conf_3[] = {3, 27, 2, 10, 15};
-    int slot2_conf_3[] = {5, 39, 3, 15, 25};
-    int slot3_conf_3[] = {3, 21, 2, 10, 15};
-
-    // Config_4
-    int slot1_conf_4[] = {8, 24, 1, 11, 14};
-    int slot2_conf_4[] = {14, 41, 3, 17, 20};
-    int slot3_conf_4[] = {8, 20, 2, 9, 10};
-
-    // Config_5
-    int slot1_conf_5[] = {7, 20, 2, 9, 15};
-    int slot2_conf_5[] = {14, 40, 3, 18, 20};
-    int slot3_conf_5[] = {6, 18, 2, 8, 10};
-
-    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
-    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
-}
-
-void print_configuration() {
-    for (int slot = 0; slot < 3; slot++) {
-        printf("FASCIA #%d\n", slot);
-        for (int block = 0; block < NUM_BLOCKS; block++) {
-            printf("...%s: %d\n", stringFromEnum(block), config.slot_config[slot][block]);
-        }
-        printf("\n");
-    }
-}
-
 int main(int argc, char *argv[]) {
     PlantSeeds(521312312);
     if (argc != 3) {
-        printf("Default Simultation\n");
-        simulation_mode = "FINITE";
-        stop_simulation = S3;
-        finite_horizon_simulation(stop_simulation, 0);
+        printf("Usage: ./test <FINITE/INFINITE> <TIME_SLOT>\n");
         exit(0);
     }
     simulation_mode = argv[1];
@@ -151,34 +80,40 @@ int main(int argc, char *argv[]) {
 
     switch (num_slot) {
         case 0:
-            stop_simulation = S1;
+            stop_simulation = TIME_SLOT_1;
             break;
         case 1:
-            stop_simulation = S2;
+            stop_simulation = TIME_SLOT_1 + TIME_SLOT_2;
             break;
         case 2:
-            stop_simulation = S3;
+            stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
             break;
 
         default:
-            stop_simulation = S3;
+            printf("Specify time slot between 0 and 2\n");
+            exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         infinite_horizon_simulation(num_slot);
+    } else {
+        printf("Specify mode FINITE or INFINITE\n");
+        exit(0);
     }
 }
 
+// Esegue le ripetizioni di singole run a orizzonte finito
 void repeat_finite(int stop_time, int repetitions) {
     init_config();
-    print_configuration();
+    print_configuration(&config);
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_simulation(stop_time, r);
     }
 }
 
+// Esegue una singola run di simulazione ad orizzonte finito
 void finite_horizon_simulation(int stop_time, int repetition) {
     printf("\n\n==== Finite Horizon Simulation | sim_time %d | repetition #%d ====", stop_time, repetition);
     print_line();
@@ -219,6 +154,8 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     clear_environment();
 }
 
+// Esegue una singola run di simulazione ad orizzonte infinito
+// TODO batch means
 void infinite_horizon_simulation(int slot) {
     printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot);
     arrival_rate = lambdas[slot];
@@ -253,89 +190,7 @@ void infinite_horizon_simulation(int slot) {
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
-/*
-* Genera un tempo di Arrivo secondo la distribuzione di Poisson
-*/
-double getArrival(double current) {
-    double arrival = current;
-    SelectStream(254);
-    arrival += Poisson(1 / arrival_rate);
-    return (arrival);
-}
-
-// Inserisce un job nella coda del blocco specificata
-void enqueue(struct block *block, double arrival) {
-    struct job *j = (struct job *)malloc(sizeof(struct job));
-    if (j == NULL)
-        handle_error("malloc");
-
-    j->arrival = arrival;
-    j->next = NULL;
-
-    if (block->tail)  // Appendi alla coda se esiste, altrimenti è la testa
-        block->tail->next = j;
-    else
-        block->head_service = j;
-
-    block->tail = j;
-
-    if (block->head_queue == NULL) {
-        block->head_queue = j;
-    }
-}
-
-// Ritorna e rimuove il job dalla coda del blocco specificata
-struct job dequeue(struct block *block) {
-    struct job *j = block->head_service;
-
-    if (!j->next)
-        block->tail = NULL;
-
-    block->head_service = j->next;
-
-    if (block->head_queue != NULL && block->head_queue->next != NULL) {
-        struct job *tmp = block->head_queue->next;
-        block->head_queue = tmp;
-    } else {
-        block->head_queue = NULL;
-    }
-    free(j);
-}
-
-// Ritorna il primo server libero nel blocco specificato
-server *findFreeServer(struct block b) {
-    int block_type = b.type;
-    int active_servers = global_network_status.num_online_servers[block_type];
-    for (int i = 0; i < active_servers; i++) {
-        if (global_network_status.server_list[block_type][i].status == IDLE) {
-            return &global_network_status.server_list[block_type][i];
-        }
-    }
-    return NULL;
-}
-
-// Genera un tempo di servizio secondo la distribuzione specificata e stream del servente individuato
-double getService(enum block_types type, int stream) {
-    SelectStream(stream);
-
-    switch (type) {
-        case TEMPERATURE_CTRL:
-            return Exponential(SERV_TEMPERATURE_CTRL);
-        case TICKET_BUY:
-            return Exponential(SERV_TICKET_BUY);
-        case TICKET_GATE:
-            return Exponential(SERV_TICKET_GATE);
-        case SEASON_GATE:
-            return Exponential(SERV_SEASON_GATE);
-        case GREEN_PASS:
-            return Exponential(SERV_GREEN_PASS);
-        default:
-            return 0;
-    }
-}
-/*
-Processa un arrivo dall'esterno verso il sistema
-*/
+//Processa un arrivo dall'esterno verso il sistema
 void process_arrival() {
     blocks[TEMPERATURE_CTRL].total_arrivals++;
     blocks[TEMPERATURE_CTRL].jobInBlock++;
@@ -453,6 +308,85 @@ void process_completion(compl c) {
         blocks[GREEN_PASS].total_bypassed++;
         return;
     }
+}
+
+// Genera un tempo di arrivo secondo la distribuzione di Poisson
+double getArrival(double current) {
+    double arrival = current;
+    SelectStream(254);
+    arrival += Poisson(1 / arrival_rate);
+    return (arrival);
+}
+
+// Genera un tempo di servizio esponenziale di media specificata e stream del servente individuato
+double getService(enum block_types type, int stream) {
+    SelectStream(stream);
+
+    switch (type) {
+        case TEMPERATURE_CTRL:
+            return Exponential(SERV_TEMPERATURE_CTRL);
+        case TICKET_BUY:
+            return Exponential(SERV_TICKET_BUY);
+        case TICKET_GATE:
+            return Exponential(SERV_TICKET_GATE);
+        case SEASON_GATE:
+            return Exponential(SERV_SEASON_GATE);
+        case GREEN_PASS:
+            return Exponential(SERV_GREEN_PASS);
+        default:
+            return 0;
+    }
+}
+
+// Inserisce un job nella coda del blocco specificata
+void enqueue(struct block *block, double arrival) {
+    struct job *j = (struct job *)malloc(sizeof(struct job));
+    if (j == NULL)
+        handle_error("malloc");
+
+    j->arrival = arrival;
+    j->next = NULL;
+
+    if (block->tail)  // Appendi alla coda se esiste, altrimenti è la testa
+        block->tail->next = j;
+    else
+        block->head_service = j;
+
+    block->tail = j;
+
+    if (block->head_queue == NULL) {
+        block->head_queue = j;
+    }
+}
+
+// Rimuove il job dalla coda del blocco specificata
+void dequeue(struct block *block) {
+    struct job *j = block->head_service;
+
+    if (!j->next)
+        block->tail = NULL;
+
+    block->head_service = j->next;
+
+    if (block->head_queue != NULL && block->head_queue->next != NULL) {
+        struct job *tmp = block->head_queue->next;
+        block->head_queue = tmp;
+    } else {
+        block->head_queue = NULL;
+    }
+    free(j);
+}
+
+// Ritorna il primo server libero nel blocco specificato
+server *findFreeServer(struct block b) {
+    int block_type = b.type;
+    int active_servers = global_network_status.num_online_servers[block_type];
+    for (int i = 0; i < active_servers; i++) {
+        if (global_network_status.server_list[block_type][i].status == IDLE) {
+            return &global_network_status.server_list[block_type][i];
+        }
+    }
+    return NULL;
 }
 
 // Inizializza tutti i blocchi del sistema
@@ -610,4 +544,65 @@ void end_servers() {
             }
         }
     }
+}
+
+// Resetta l'ambiente di esecuzione tra due run ad orizzonte finito
+void clear_environment() {
+    global_sorted_completions = empty_sorted;
+    global_network_status = empty_network;
+
+    // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        blocks[block_type].area.node = 0;
+        blocks[block_type].area.service = 0;
+        blocks[block_type].area.queue = 0;
+    }
+}
+
+// Scrive i tempi di risposta del campione su un file csv
+void write_rt_on_csv() {
+    FILE *csv;
+    char filename[13];
+    for (int j = 0; j < 3; j++) {
+        snprintf(filename, 13, "rt_slot%d.csv", j);
+        csv = open_csv(filename);
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
+            append_on_csv(csv, i, statistics[i][j], 0);
+        }
+        fclose(csv);
+    }
+}
+
+// Setta la configurazione di avvio specificata
+void init_config() {
+    // Config 1
+    int slot1_conf[] = {3, 20, 1, 5, 15};
+    int slot2_conf[] = {5, 45, 4, 15, 25};
+    int slot3_conf[] = {2, 10, 1, 3, 15};
+
+    // Config_2
+    int slot1_conf_2[] = {10, 30, 3, 20, 15};
+    int slot2_conf_2[] = {15, 45, 4, 15, 20};
+    int slot3_conf_2[] = {12, 20, 2, 40, 10};
+
+    // Config_3
+    int slot1_conf_3[] = {3, 27, 2, 10, 15};
+    int slot2_conf_3[] = {5, 39, 3, 15, 25};
+    int slot3_conf_3[] = {3, 21, 2, 10, 15};
+
+    // Config_4
+    int slot1_conf_4[] = {8, 24, 1, 11, 14};
+    int slot2_conf_4[] = {14, 41, 3, 17, 20};
+    int slot3_conf_4[] = {8, 20, 2, 9, 10};
+
+    // Config_5
+    int slot1_conf_5[] = {7, 20, 2, 9, 15};
+    int slot2_conf_5[] = {14, 40, 3, 18, 20};
+    int slot3_conf_5[] = {6, 18, 2, 8, 10};
+
+    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
+    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
 }

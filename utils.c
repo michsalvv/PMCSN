@@ -11,6 +11,7 @@
 #include "DES/rvgs.h"
 #include "config.h"
 
+// Stampa a schermo una linea di separazione
 void print_line() {
     printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
 }
@@ -146,8 +147,6 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
 
 // Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, compl completion) {
-    //printf("Genero il tempo di completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
-
     int i;
     int n = compls->num_completions;
 
@@ -162,9 +161,6 @@ int insertSorted(sorted_completions *compls, compl completion) {
 
 // Function to delete an element
 int deleteElement(sorted_completions *compls, compl completion) {
-    // Find position of element to be deleted
-    //printf("Eseguito il completamento: {(%d,%d),%f}\n", completion.server->block->type, completion.server->id, completion.value);
-
     int n = compls->num_completions;
 
     int pos = binarySearch(compls, 0, n - 1, completion);
@@ -198,6 +194,7 @@ void print_block_status(sorted_completions *compls, struct block blocks[], int d
     printf("\n");
 }
 
+// Stampa lo stato attuale dei completamenti da processare
 void print_completion_status(sorted_completions *compls) {
     for (int i = 0; i < compls->num_completions; i++) {
         compl actual = compls->sorted_list[i];
@@ -205,6 +202,7 @@ void print_completion_status(sorted_completions *compls) {
     }
 }
 
+// Verifica che il numero di job in ingresso ai vari blocchi è coerente con le probabilità di routing.
 void debug_routing() {
     int numExit = 0;
     int numTicketBuy = 0;
@@ -226,10 +224,11 @@ void debug_routing() {
             numSeasonGate++;
         }
     }
-    printf("Exit: %d\nTickBuy: %d\nTickGate: %d\nSeasGate: %d\n", numExit, numTicketBuy, numTicketGate, numSeasonGate);
+    printf("Exit: %d\nTickBuy: %d\nSeasGate: %d\nTickGate: %d\n", numExit, numTicketBuy, numTicketGate, numSeasonGate);
     exit(0);
 }
 
+// Calcola le statistiche specificate
 void calculate_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, double rt_arr[]) {
     char type[20];
     double system_total_wait = 0;
@@ -256,6 +255,7 @@ void calculate_statistics(network_status *network, struct block blocks[], double
     rt_arr[network->time_slot] = system_total_wait;
 }
 
+// Stampa a schermo le statistiche calcolate
 void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, int rep) {
     char type[20];
     double system_total_wait = 0;
@@ -303,7 +303,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
     printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
 }
 
-// Genera una configurazione di lancio
+// Genera una configurazione di avvio per la simulazione
 network_configuration get_config(int *values_1, int *values_2, int *values_3) {
     network_configuration *config = malloc(sizeof(network_configuration));
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -314,6 +314,7 @@ network_configuration get_config(int *values_1, int *values_2, int *values_3) {
     return *config;
 }
 
+// Stampa a schermo lo stato di tutti i serventi della rete
 void print_network_status(network_status *network) {
     printf("\n");
     for (int j = 0; j < NUM_BLOCKS; j++) {
@@ -327,7 +328,7 @@ void print_network_status(network_status *network) {
     }
 }
 
-// Stampa una barra di avanzamento relativa all'invio/ricezione del file
+// Stampa una barra di avanzamento relativa alla singola run di simulazione
 void print_percentage(double part, double total, double oldPart) {
     double percentage = part / total * 100;
     double oldPercentage = oldPart / total * 100;
@@ -347,14 +348,26 @@ void print_percentage(double part, double total, double oldPart) {
     printf(" %02.0f%%", percentage + 1);
 }
 
+// Apre un file csv e ritorna il puntatore a quel file
 FILE *open_csv(char *filename) {
     FILE *fpt;
     fpt = fopen(filename, "w");
-    //fprintf(fpt, "# Rep, Ts, Utilization\n");
     return fpt;
 }
 
+// Inserisce una nuova linea nel file csv specificato
 void *append_on_csv(FILE *fpt, double ts, double p) {
     fprintf(fpt, "%2.6f\n", ts);
     return fpt;
+}
+
+// Stampa la configurazione di avvio
+void print_configuration(network_configuration *config) {
+    for (int slot = 0; slot < 3; slot++) {
+        printf("FASCIA #%d\n", slot);
+        for (int block = 0; block < NUM_BLOCKS; block++) {
+            printf("...%s: %d\n", stringFromEnum(block), config->slot_config[slot][block]);
+        }
+        printf("\n");
+    }
 }

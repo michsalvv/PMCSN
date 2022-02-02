@@ -1,3 +1,5 @@
+#include <stdbool.h>
+
 #define NUM_BLOCKS 5
 
 #define MAX_SERVERS 50
