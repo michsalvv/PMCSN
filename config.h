@@ -30,9 +30,9 @@
 
 // Time Slot Infinite Values
 // TODO mettere i valori batch means con b e k
-#define TIME_SLOT_1_INF TIME_SLOT_1 * 15
-#define TIME_SLOT_2_INF TIME_SLOT_2 * 15
-#define TIME_SLOT_3_INF TIME_SLOT_3 * 15
+#define TIME_SLOT_1_INF TIME_SLOT_1 * 150
+#define TIME_SLOT_2_INF TIME_SLOT_2 * 150
+#define TIME_SLOT_3_INF TIME_SLOT_3 * 150
 
 // Services Time
 #define SERV_TEMPERATURE_CTRL 15
@@ -55,6 +55,9 @@
 #define CM_TICKET_GATE_SERVER 1300
 #define CM_GREEN_PASS_SERVER 800
 
+#define BATCH_B 1024
+#define BATCH_K 64
+
 #define handle_error(msg)   \
     do {                    \
         perror(msg);        \
@@ -70,17 +73,20 @@ enum block_types {
     EXIT
 };
 
-// Struttura che mantiene la somma accumulata
-struct sum {
-    double service;  // Tempi di servizio
-    long served;     // Numero di job serviti
-};
+// Data Structures
+// --------------------------------------------------------------------------------------------------
 
 // Struttura che mantiene il clock
 struct clock_t {
     double current;  // Tempo attuale di simulazione
     double next;     // Tempo attuale del prossimo evento, sia arrivo che completamento
     double arrival;  // Tempo attuale del prossimo arrivo
+};
+
+// Struttura che mantiene la somma accumulata
+struct sum {
+    double service;  // Tempi di servizio
+    long served;     // Numero di job serviti
 };
 
 // Struttura che mantiene un job. Il puntatore *next implementa la Linked List
@@ -124,6 +130,9 @@ struct block {
     double active_time;
     int jobInQueue;
     int jobInBlock;
+
+    int batch_block;
+    int batch_queue;
     enum block_types type;
 
     int total_arrivals;
@@ -148,3 +157,4 @@ typedef struct {
 typedef struct {
     int slot_config[3][NUM_BLOCKS];
 } network_configuration;
+// --------------------------------------------------------------------------------------------------

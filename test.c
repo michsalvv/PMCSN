@@ -32,45 +32,44 @@ void deactivate_servers();
 void update_network();
 void repeat_finite(int stop_time, int repetitions);
 void finite_horizon_simulation(int stop, int repetition);
-void infinite_horizon_simulation(int slot);
+void infinite_horizon_simulation(int slot, int b, int k);
 void end_servers();
 void clear_environment();
 void write_rt_on_csv();
 void init_config();
+void find_batch_b(int slot);
+void reset_statistics();
 // ------------------------------------------------------------------------------------------------
 network_configuration config;
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
 network_status global_network_status;
 static const sorted_completions empty_sorted;
 static const network_status empty_network;
-
+struct clock_t clock;
 struct block blocks[NUM_BLOCKS];
 
+double arrival_rate;
+int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
+double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
+int completed = 0;
+int dropped = 0;
+int bypassed = 0;
 bool slot_switched[3];
 
 int streamID;            // Stream da selezionare per generare il tempo di servizio
 server *nextCompletion;  // Tiene traccia del server relativo al completamento imminente
 
-int completed = 0;
-int dropped = 0;
-int bypassed = 0;
-
-struct clock_t clock;
-
-double arrival_rate;
-
-int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
-double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
-
-int stop_simulation = 0;
 char *simulation_mode;
 int num_slot;
+int stop_simulation;
 
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
+double infinite_statistics[200000];
+
+// --------------------------------------------------------------------d----------------------------
 
 int main(int argc, char *argv[]) {
-    PlantSeeds(521312312);
     if (argc != 3) {
         printf("Usage: ./test <FINITE/INFINITE> <TIME_SLOT>\n");
         exit(0);
@@ -94,13 +93,59 @@ int main(int argc, char *argv[]) {
             exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
+        PlantSeeds(521312312);
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        infinite_horizon_simulation(num_slot);
+        run_batch_means(num_slot);
     } else {
         printf("Specify mode FINITE or INFINITE\n");
         exit(0);
+    }
+}
+
+int last_jobs_block[5] = {0, 0, 0, 0, 0};
+int last_jobs_queue[5] = {0, 0, 0, 0, 0};
+
+void run_batch_means(int slot) {
+    arrival_rate = lambdas[slot];
+    int b = BATCH_B;
+    PlantSeeds(521312312);
+    clear_environment();
+    init_config();
+    init_network();
+    update_network();
+    for (int k = 0; k < BATCH_K; k++) {
+        infinite_horizon_simulation(slot, b, k);
+    }
+    FILE *csv;
+    csv = open_csv("rt_infinite.csv");
+    for (int j = 0; j < BATCH_K; j++) {
+        append_on_csv(csv, j, infinite_statistics[j], 0);
+    }
+    fclose(csv);
+}
+
+void find_batch_b(int slot) {
+    arrival_rate = lambdas[slot];
+    int b = 64;
+    for (b; b < 2058; b = b * 2) {
+        PlantSeeds(521312312);
+        clear_environment();
+        init_config();
+        init_network();
+        update_network();
+        for (int k = 0; k < BATCH_K; k++) {
+            infinite_horizon_simulation(slot, b, k);
+        }
+        char filename[20];
+        snprintf(filename, 20, "rt_inf_%d.csv", b);
+        FILE *csv;
+        csv = open_csv(filename);
+        for (int j = 0; j < BATCH_K; j++) {
+            append_on_csv(csv, j, infinite_statistics[j], 0);
+        }
+        fclose(csv);
     }
 }
 
@@ -145,7 +190,7 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     end_servers();
     print_real_cost(&global_network_status);
     //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
-    calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
     print_line();
     for (int i = 0; i < 3; i++) {
         printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
@@ -156,18 +201,16 @@ void finite_horizon_simulation(int stop_time, int repetition) {
 
 // Esegue una singola run di simulazione ad orizzonte infinito
 // TODO batch means
-void infinite_horizon_simulation(int slot) {
+void infinite_horizon_simulation(int slot, int b, int k) {
+    int n = 0;
+
     printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot);
-    arrival_rate = lambdas[slot];
     global_network_status.time_slot = slot;
-    init_config();
-    init_network();
-    update_network();
     int simulation_time = infinites[slot];
     double old;
-    while (clock.arrival <= simulation_time) {
-        print_percentage(clock.current, simulation_time, old);
-        old = clock.current;
+    while (n < b) {
+        print_percentage(n, b, old);
+        old = n;
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
@@ -176,18 +219,23 @@ void infinite_horizon_simulation(int slot) {
             if (blocks[i].jobInBlock > 0) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
                 blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-                //blocks[i].area.service += (clock.next - clock.current);  //TODO Da togliere ?? Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
             }
         }
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
         if (clock.current == clock.arrival) {
             process_arrival();
+            n++;
+
         } else {
             process_completion(*nextCompletion);
         }
     }
-    print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
-    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+
+    calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
+    reset_statistics();
+
+    //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
+    //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 }
 
 //Processa un arrivo dall'esterno verso il sistema
@@ -315,7 +363,7 @@ double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
     arrival += Poisson(1 / arrival_rate);
-    return (arrival);
+    return arrival;
 }
 
 // Genera un tempo di servizio esponenziale di media specificata e stream del servente individuato
@@ -397,8 +445,8 @@ void init_network() {
         slot_switched[i] = false;
         response_times[i] = 0;
     }
-    init_blocks();
 
+    init_blocks();
     if (str_compare(simulation_mode, "FINITE") == 0) {
         set_time_slot();
     }
@@ -450,7 +498,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
 
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
@@ -458,7 +506,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
 
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
@@ -553,6 +601,18 @@ void clear_environment() {
 
     // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        blocks[block_type].area.node = 0;
+        blocks[block_type].area.service = 0;
+        blocks[block_type].area.queue = 0;
+    }
+}
+
+// Resetta le statistiche tra un batch ed il successivo
+void reset_statistics() {
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        blocks[block_type].total_arrivals = 0;
+        blocks[block_type].total_completions = 0;
+        blocks[block_type].total_bypassed = 0;
         blocks[block_type].area.node = 0;
         blocks[block_type].area.service = 0;
         blocks[block_type].area.queue = 0;

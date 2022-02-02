@@ -229,7 +229,7 @@ void debug_routing() {
 }
 
 // Calcola le statistiche specificate
-void calculate_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, double rt_arr[]) {
+void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[]) {
     char type[20];
     double system_total_wait = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -253,6 +253,33 @@ void calculate_statistics(network_status *network, struct block blocks[], double
         system_total_wait += wait;
     }
     rt_arr[network->time_slot] = system_total_wait;
+}
+
+// Calcola le statistiche specificate
+void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
+    char type[20];
+    double system_total_wait = 0;
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        strcpy(type, stringFromEnum(blocks[i].type));
+
+        int m = network->num_online_servers[i];
+        int arr = blocks[i].total_arrivals;
+        int r_arr = arr - blocks[i].total_bypassed;
+        int jq = blocks[i].jobInQueue;
+        int inter = currentClock / blocks[i].total_arrivals;
+
+        double a_rate = blocks[i].total_arrivals / currentClock;
+        double ra_rate = r_arr / currentClock;
+        double s_rate = r_arr / blocks[i].area.service;
+
+        double wait = blocks[i].area.node / r_arr;
+        double delay = blocks[i].area.queue / r_arr;
+        double service = blocks[i].area.service / r_arr;
+        double utilization = ra_rate / (m * s_rate);
+
+        system_total_wait += wait;
+    }
+    rt_arr[pos] = system_total_wait;
 }
 
 // Stampa a schermo le statistiche calcolate
