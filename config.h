@@ -14,27 +14,30 @@
 #define USED 1
 #define NOTUSED 0
 
+#define NUM_REPETITIONS 256
+
 // Input Values
-#define LAMBDA_1 2.888889
-#define LAMBDA_2 4.242424
-#define LAMBDA_3 2.266667
+#define LAMBDA_1 0.405556
+#define LAMBDA_2 0.829545
+#define LAMBDA_3 0.365
 
 // Time Slot Values
 #define TIME_SLOT_1 10800
 #define TIME_SLOT_2 39600
 #define TIME_SLOT_3 18000
 
-// Time Slot Values
+// Time Slot Infinite Values
+// TODO mettere i valori batch means con b e k
 #define TIME_SLOT_1_INF TIME_SLOT_1 * 15
 #define TIME_SLOT_2_INF TIME_SLOT_2 * 15
 #define TIME_SLOT_3_INF TIME_SLOT_3 * 15
 
 // Services Time
-#define SERV_TEMPERATURE_CTRL 0.9
-#define SERV_TICKET_BUY 18
-#define SERV_TICKET_GATE 4
-#define SERV_SEASON_GATE 2.5
-#define SERV_GREEN_PASS 10
+#define SERV_TEMPERATURE_CTRL 15
+#define SERV_TICKET_BUY 90
+#define SERV_SEASON_GATE 10
+#define SERV_TICKET_GATE 25
+#define SERV_GREEN_PASS 30
 
 // Routing Probabilities
 #define P_EXIT_TEMP 0.2

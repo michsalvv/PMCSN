@@ -11,8 +11,6 @@
 #include "DES/rvgs.h"
 #include "config.h"
 
-void write_on_csv(int rep, double ts, double p);
-
 // TODO necessario perchè strcmp non viene letto da gdb
 int str_compare(char *str1, char *str2) {
     while (*str1 && *str1 == *str2) {
@@ -62,7 +60,7 @@ void print_cost_details(network_configuration conf) {
     int slots[] = {TIME_SLOT_1, TIME_SLOT_2, TIME_SLOT_3};
     for (int slot = 0; slot < 3; slot++) {
         seconds = slots[slot];
-        printf("\n-- Costo Fascia %d --", slot + 1);
+        printf("\n-- Costo Fascia #%d --", slot);
         // Numero di secondi in un mese sulle 19 ore lavorative
         float sec_in_month = 60 * 60 * 19 * 30;
         double temp_c = CM_TEMPERATURE_CTRL_SERVER / sec_in_month * conf.slot_config[slot][TEMPERATURE_CTRL] * seconds;
@@ -208,6 +206,35 @@ void debug_routing() {
     exit(0);
 }
 
+void calculate_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, double rt_arr[]) {
+    char type[20];
+    double system_total_wait = 0;
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        strcpy(type, stringFromEnum(blocks[i].type));
+
+        int m = network->num_online_servers[i];
+        int arr = blocks[i].total_arrivals;
+        int r_arr = arr - blocks[i].total_bypassed;
+        int jq = blocks[i].jobInQueue;
+        int inter = currentClock / blocks[i].total_arrivals;
+
+        double a_rate = blocks[i].total_arrivals / currentClock;
+        double ra_rate = r_arr / currentClock;
+        double s_rate = r_arr / blocks[i].area.service;
+
+        double wait = blocks[i].area.node / r_arr;
+        double delay = blocks[i].area.queue / r_arr;
+        double service = blocks[i].area.service / r_arr;
+        double utilization = ra_rate / (m * s_rate);
+
+        //double vi =
+
+        system_total_wait += wait;
+    }
+    rt_arr[network->time_slot] = system_total_wait;
+    //printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
+}
+
 void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, int rep) {
     char type[20];
     double system_total_wait = 0;
@@ -230,7 +257,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         double utilization = ra_rate / (m * s_rate);
 
         system_total_wait += wait;
-        /*
+
         printf("\n\n======== Result for block %s ========\n", type);
         printf("Number of Servers ................... = %d\n", m);
         printf("Arrivals ............................ = %d\n", arr);
@@ -244,8 +271,6 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Average # in the queue .............. = %6.6f\n", blocks[i].area.queue / currentClock);
         printf("Average # in the node ............... = %6.6f\n", blocks[i].area.node / currentClock);
 
-        printf("Average utilization of the node ..... = %1.6f\n", utilization);
-
         printf("\n    server     utilization     avg service\n");
         for (int j = 0; j < MAX_SERVERS; j++) {
             server s = network->server_list[i][j];
@@ -253,8 +278,6 @@ void print_statistics(network_status *network, struct block blocks[], double cur
                 printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
             }
         }
-        */
-        //printf("Utilization ......................... = %6.2f\n", blocks[i].area.service / (currentClock * blocks[i].num_server));
     }
     printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
 }
@@ -287,23 +310,30 @@ void print_percentage(double part, double total, double oldPart) {
     if ((int)oldPercentage == (int)percentage) {
         return;
     }
-
     printf("\rSimulation Progress: |");
     for (int i = 0; i <= percentage / 2; i++) {
         printf("█");
         fflush(stdout);
     }
     for (int j = percentage / 2; j < 50 - 1; j++) {
-        printf("—");
+        printf("'");
     }
     printf("|");
     printf(" %02.0f%%", percentage + 1);
 }
 
-void write_on_csv(int rep, double ts, double p) {
+FILE *open_csv(char *filename) {
     FILE *fpt;
-    fpt = fopen("repetitions.csv", "a");
-    fprintf(fpt, "# Rep, Ts, Utilization\n");
-    fprintf(fpt, "%d, %2.6f, %2.6f\n", rep, ts, p);
-    fclose(fpt);
+    fpt = fopen(filename, "w");
+    //fprintf(fpt, "# Rep, Ts, Utilization\n");
+    return fpt;
+}
+
+void *append_on_csv(FILE *fpt, double ts, double p) {
+    fprintf(fpt, "%2.6f\n", ts);
+    return fpt;
+}
+
+void print_line() {
+    printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
 }

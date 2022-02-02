@@ -61,6 +61,9 @@ int stop_simulation = 0;
 char *simulation_mode;
 int num_slot;
 
+double response_times[] = {0, 0, 0};
+double statistics[NUM_REPETITIONS][3];
+
 //TODO iniziare con il metodo della replicazione per lo stato finito. Metterer un parametro da argv che è il numero di run.
 //TODO iniziare con il batch means per lo stato infinito. Vedere b e k come si dimensionano e togliere il alore TIME_SLOT*15 e mettere insomma i batch.
 
@@ -77,6 +80,35 @@ void clear_environment() {
     }
 }
 
+void print_debug_rt() {
+    double total0 = 0;
+    double total1 = 0;
+    double total2 = 0;
+    for (int i = 0; i < NUM_REPETITIONS; i++) {
+        total0 += statistics[i][0];
+        total1 += statistics[i][1];
+        total2 += statistics[i][2];
+    }
+    print_line();
+    print_line();
+    printf("slot #1: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total0 / NUM_REPETITIONS, total0 / NUM_REPETITIONS / 60);
+    printf("slot #2: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total1 / NUM_REPETITIONS, total1 / NUM_REPETITIONS / 60);
+    printf("slot #3: System Total Response Time .......... = %1.6f sec (%1.6f min)\n", total2 / NUM_REPETITIONS, total2 / NUM_REPETITIONS / 60);
+}
+
+void write_rt_on_csv() {
+    FILE *csv;
+    char filename[13];
+    for (int j = 0; j < 3; j++) {
+        snprintf(filename, 13, "rt_slot%d.csv", j);
+        csv = open_csv(filename);
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
+            append_on_csv(csv, i, statistics[i][j], 0);
+        }
+        fclose(csv);
+    }
+}
+
 void init_config() {
     // Config 1
     int slot1_conf[] = {3, 20, 1, 5, 15};
@@ -88,8 +120,26 @@ void init_config() {
     int slot2_conf_2[] = {15, 45, 4, 15, 20};
     int slot3_conf_2[] = {12, 20, 2, 40, 10};
 
-    config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    // Config_3
+    int slot1_conf_3[] = {3, 27, 2, 10, 15};
+    int slot2_conf_3[] = {5, 39, 3, 15, 25};
+    int slot3_conf_3[] = {3, 21, 2, 10, 15};
+
+    // Config_4
+    int slot1_conf_4[] = {8, 24, 1, 11, 14};
+    int slot2_conf_4[] = {14, 41, 3, 17, 20};
+    int slot3_conf_4[] = {8, 20, 2, 9, 10};
+
+    // Config_5
+    int slot1_conf_5[] = {7, 20, 2, 9, 15};
+    int slot2_conf_5[] = {14, 40, 3, 18, 20};
+    int slot3_conf_5[] = {6, 18, 2, 8, 10};
+
+    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
     //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
+    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
 }
 
 void print_configuration() {
@@ -100,19 +150,14 @@ void print_configuration() {
         }
         printf("\n");
     }
+    print_cost_details(config);
 }
 
-int main() {
-    PlantSeeds(521312312);
-    simulation_mode = "FINITE";
-    num_slot = 3;
-    repeat_finite(S3, 64);
-}
-
-int main_2(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
     PlantSeeds(521312312);
     if (argc != 3) {
         printf("Default Simultation\n");
+        simulation_mode = "FINITE";
         stop_simulation = S3;
         finite_horizon_simulation(stop_simulation, 0);
         exit(0);
@@ -121,33 +166,39 @@ int main_2(int argc, char *argv[]) {
     num_slot = atoi(argv[2]);
 
     switch (num_slot) {
-        case 1:
+        case 0:
             stop_simulation = S1;
             break;
-        case 2:
+        case 1:
             stop_simulation = S2;
             break;
+        case 2:
+            stop_simulation = S3;
+            break;
+
         default:
             stop_simulation = S3;
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        repeat_finite(stop_simulation, 64);
-        //finite_horizon_simulation(stop_simulation);
+        repeat_finite(stop_simulation, NUM_REPETITIONS);
+        write_rt_on_csv();
+        print_debug_rt();
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        //infinite_horizon_simulation(num_slot);
+        infinite_horizon_simulation(num_slot);
     }
 }
 
 void repeat_finite(int stop_time, int repetitions) {
     init_config();
     print_configuration();
-    for (int r = 1; r <= repetitions; r++) {
+    for (int r = 0; r < repetitions; r++) {
         finite_horizon_simulation(stop_time, r);
     }
 }
 
 void finite_horizon_simulation(int stop_time, int repetition) {
-    printf("\n\n==== Finite Horizon Simulation | sim_time %d | repetition #%d====\n", stop_time, repetition);
+    printf("\n\n==== Finite Horizon Simulation | sim_time %d | repetition #%d ====", stop_time, repetition);
+    print_line();
     init_network();
     double old = 0;
     while (clock.arrival <= stop_time) {
@@ -190,14 +241,21 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     //print_network_status(&global_network_status);
     print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+    calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+    print_line();
+    for (int i = 0; i < 3; i++) {
+        printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
+        statistics[repetition][i] = response_times[i];
+    }
     clear_environment();
 }
 
 void infinite_horizon_simulation(int slot) {
-    printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot + 1);
+    printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot);
     arrival_rate = lambdas[slot];
-    init_network();
     global_network_status.time_slot = slot;
+    init_config();
+    init_network();
     update_network();
     int simulation_time = infinites[slot];
     double old;
@@ -246,7 +304,7 @@ void infinite_horizon_simulation(int slot) {
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Exponential(1 / arrival_rate);
+    arrival += Poisson(1 / arrival_rate);
     return (arrival);
 }
 
@@ -456,10 +514,10 @@ void init_network() {
     //printf("Initializing Network\n");
     streamID = 0;
     clock.current = START;
-
-    slot_switched[0] = false;
-    slot_switched[1] = false;
-    slot_switched[2] = false;
+    for (int i = 0; i < 3; i++) {
+        slot_switched[i] = false;
+        response_times[i] = 0;
+    }
 
     init_blocks();
 
@@ -511,7 +569,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+        calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
 
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
@@ -519,7 +577,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+        calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
 
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
