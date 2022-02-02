@@ -13,7 +13,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
 char *stringFromEnum(enum block_types f);
 network_configuration get_config(int *values_1, int *values_2, int *values_3);
 void print_network_status(network_status *network);
-double print_cost_details(network_configuration conf);
+double print_cost_theor(network_configuration conf);
 void print_percentage(double part, double total, double oldPart);
 int str_compare(char *str1, char *str2);
 void calculate_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, double rt_arr[]);
@@ -21,3 +21,5 @@ void print_line();
 FILE *open_csv(char *filename);
 
 void *append_on_csv(FILE *fpt, int rep, double ts, double p);
+
+void print_real_cost(network_status net);

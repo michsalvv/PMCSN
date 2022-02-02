@@ -11,6 +11,10 @@
 #include "DES/rvgs.h"
 #include "config.h"
 
+void print_line() {
+    printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
+}
+
 // TODO necessario perchè strcmp non viene letto da gdb
 int str_compare(char *str1, char *str2) {
     while (*str1 && *str1 == *str2) {
@@ -19,12 +23,14 @@ int str_compare(char *str1, char *str2) {
     }
     return *str1 - *str2;
 }
+
+// Ritorna il nome del blocco passando il suo identificativo
 char *stringFromEnum(enum block_types f) {
     char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "SEASON_GATE", "TICKET_GATE", "GREEN_PASS"};
     return strings[f];
 }
 
-// Fornisce il blocco di destinazione partendo dal blocco del controllo temperatura
+// Fornisce il codice del blocco di destinazione partendo dal blocco del controllo temperatura
 int routing_from_temperature() {
     double random = Uniform(0, 100);
     if (random < P_EXIT_TEMP) {
@@ -55,14 +61,32 @@ int getDestination(enum block_types from) {
     }
 }
 
-void print_cost_details(network_configuration conf) {
+void print_real_cost(network_status net) {
+    double cm_costs[] = {CM_TEMPERATURE_CTRL_SERVER, CM_TICKET_BUY_SERVER, CM_SEASON_GATE_SERVER, CM_TICKET_GATE_SERVER, CM_GREEN_PASS_SERVER};
+    double costs[5];
+    double total = 0;
+    float sec_in_month = 60 * 60 * 19 * 30;
+    print_line();
+    printf("Analisi Costi\n");
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server s = net.server_list[j][i];
+            costs[j] += s.time_online * (cm_costs[j] / sec_in_month);
+        }
+        total += costs[j];
+        printf("....%s: %f\n", stringFromEnum(j), costs[j]);
+    }
+    printf("....\n....TOTALE: %f\n", total);
+}
+
+// Stampa i dettagli sui costi della configurazione
+void print_cost_theor(network_configuration conf) {
     int seconds;
     int slots[] = {TIME_SLOT_1, TIME_SLOT_2, TIME_SLOT_3};
+    float sec_in_month = 60 * 60 * 19 * 30;
     for (int slot = 0; slot < 3; slot++) {
         seconds = slots[slot];
         printf("\n-- Costo Fascia #%d --", slot);
-        // Numero di secondi in un mese sulle 19 ore lavorative
-        float sec_in_month = 60 * 60 * 19 * 30;
         double temp_c = CM_TEMPERATURE_CTRL_SERVER / sec_in_month * conf.slot_config[slot][TEMPERATURE_CTRL] * seconds;
         printf("Costo Controllo Temperatura: %f\n", temp_c);
 
@@ -227,12 +251,9 @@ void calculate_statistics(network_status *network, struct block blocks[], double
         double service = blocks[i].area.service / r_arr;
         double utilization = ra_rate / (m * s_rate);
 
-        //double vi =
-
         system_total_wait += wait;
     }
     rt_arr[network->time_slot] = system_total_wait;
-    //printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
 }
 
 void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, int rep) {
@@ -294,10 +315,14 @@ network_configuration get_config(int *values_1, int *values_2, int *values_3) {
 }
 
 void print_network_status(network_status *network) {
+    printf("\n");
     for (int j = 0; j < NUM_BLOCKS; j++) {
-        for (int i = 0; i < network->num_online_servers[j]; i++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
             server s = network->server_list[j][i];
-            printf("(%d,%d) | status: {%d,%d} resched: %d\n", s.block->type, s.id, s.status, s.online, s.need_resched);
+            if (s.used == NOTUSED) {
+                break;
+            }
+            printf("(%d,%d) | status: {%d,%d} t_onl: %f\n", s.block->type, s.id, s.status, s.online, s.time_online);
         }
     }
 }
@@ -332,8 +357,4 @@ FILE *open_csv(char *filename) {
 void *append_on_csv(FILE *fpt, double ts, double p) {
     fprintf(fpt, "%2.6f\n", ts);
     return fpt;
-}
-
-void print_line() {
-    printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
 }

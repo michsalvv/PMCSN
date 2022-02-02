@@ -14,7 +14,7 @@
 #define USED 1
 #define NOTUSED 0
 
-#define NUM_REPETITIONS 256
+#define NUM_REPETITIONS 1
 
 // Input Values
 #define LAMBDA_1 0.405556
@@ -97,6 +97,8 @@ typedef struct server_t {
     struct block *block;
     struct sum sum;
     bool need_resched;
+    double time_online;
+    double last_online;
 } server;
 
 typedef struct {

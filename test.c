@@ -109,6 +109,18 @@ void write_rt_on_csv() {
     }
 }
 
+void end_servers() {
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server *s = &global_network_status.server_list[j][i];
+            if (s->online == ONLINE) {
+                s->time_online += (clock.current - s->last_online);
+                s->last_online = clock.current;
+            }
+        }
+    }
+}
+
 void init_config() {
     // Config 1
     int slot1_conf[] = {3, 20, 1, 5, 15};
@@ -150,7 +162,7 @@ void print_configuration() {
         }
         printf("\n");
     }
-    print_cost_details(config);
+    print_cost_theor(config);
 }
 
 int main(int argc, char *argv[]) {
@@ -237,16 +249,19 @@ void finite_horizon_simulation(int stop_time, int repetition) {
         }
         //print_block_status(&global_sorted_completions, blocks, dropped, completed,bypassed);
     }
-    //print_cost_details(config);
+    //print_cost_theor(config);
     //print_block_status(&global_sorted_completions, blocks, dropped, completed, bypassed);
     //print_network_status(&global_network_status);
-    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
-    calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
-    print_line();
-    for (int i = 0; i < 3; i++) {
-        printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
-        statistics[repetition][i] = response_times[i];
-    }
+    end_servers();
+    print_network_status(&global_network_status);
+    print_real_cost(global_network_status);
+    //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+    //calculate_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions, response_times);
+    //print_line();
+    //for (int i = 0; i < 3; i++) {
+    //  printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
+    //statistics[repetition][i] = response_times[i];
+    //}
     clear_environment();
 }
 
@@ -443,6 +458,8 @@ void process_completion(compl c) {
 
     if (c.server->need_resched) {
         c.server->online = OFFLINE;
+        c.server->time_online += (clock.current - c.server->last_online);
+        c.server->last_online = clock.current;
         c.server->need_resched = false;
     }
 
@@ -511,14 +528,12 @@ void process_completion(compl c) {
 
 // Inizializza tutti i blocchi del sistema
 void init_network() {
-    //printf("Initializing Network\n");
     streamID = 0;
     clock.current = START;
     for (int i = 0; i < 3; i++) {
         slot_switched[i] = false;
         response_times[i] = 0;
     }
-
     init_blocks();
 
     if (str_compare(simulation_mode, "FINITE") == 0) {
@@ -531,7 +546,6 @@ void init_network() {
 
 // Inizializza tutti i serventi di tutti i blocchi della rete
 void init_blocks() {
-    //printf("Initilizing servers\n");
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         blocks[block_type].type = block_type;
         blocks[block_type].jobInBlock = 0;
@@ -548,11 +562,14 @@ void init_blocks() {
             s.id = i;
             s.status = IDLE;
             s.online = OFFLINE;
+            s.used = NOTUSED;
             s.need_resched = false;
             s.block = &blocks[block_type];
             s.stream = streamID++;
             s.sum.served = 0;
             s.sum.service = 0.0;
+            s.time_online = 0.0;
+            s.last_online = 0.0;
             global_network_status.server_list[block_type][i] = s;
 
             compl c = {&global_network_status.server_list[block_type][i], INFINITY};
@@ -588,7 +605,6 @@ void set_time_slot() {
 
 // Aggiorna i serventi attivi al cambio di fascia, attivando o disattivando il numero necessario per ogni blocco
 void update_network() {
-    //printf("Updating Online Servers\n");
     int actual, new = 0;
     int slot = global_network_status.time_slot;
 
@@ -603,7 +619,7 @@ void update_network() {
     }
 }
 
-// Attiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione
+// Attiva un certo numero di server per il blocco, fino al numero specificato dalla configurazione.
 void activate_servers(int block) {
     int start = 0;
     int slot = global_network_status.time_slot;
@@ -627,7 +643,6 @@ void activate_servers(int block) {
             blocks[block].jobInQueue--;
             s->block->area.service += serviceTime;
             s->sum.service += serviceTime;
-
             insertSorted(&global_sorted_completions, c);
         }
         global_network_status.num_online_servers[block] = config.slot_config[slot][block];
@@ -647,6 +662,8 @@ void deactivate_servers(int block) {
             s->need_resched = true;
         } else {
             s->online = OFFLINE;
+            s->time_online += (clock.current - s->last_online);
+            s->last_online = clock.current;
         }
         global_network_status.num_online_servers[block] = config.slot_config[slot][block];
     }
