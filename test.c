@@ -65,6 +65,7 @@ double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[200000];
 double repetitions_costs[NUM_REPETITIONS];
 double global_means_p[BATCH_K][NUM_BLOCKS];
+double global_loss[BATCH_K];
 
 // --------------------------------------------------------------------d----------------------------
 
@@ -137,14 +138,19 @@ void run_batch_means(int slot) {
     double cost = calculate_cost(&global_network_status);
     printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
 
+    double l = 0;
     for (int j = 0; j < NUM_BLOCKS; j++) {
         printf("\nMean Utilization for block %s: ", stringFromEnum(j));
         double p = 0;
         for (int i = 0; i < BATCH_K; i++) {
             p += global_means_p[i][j];
+            if (j == GREEN_PASS) {
+                l += global_loss[i];
+            }
         }
         printf("%f", p / BATCH_K);
     }
+    printf("\nGREEN PASS LOSS PERC %f: ", l / BATCH_K);
     printf("\n");
 }
 
@@ -256,8 +262,11 @@ void infinite_horizon_batch(int slot, int b, int k) {
                 n++;
             }
         }
+        if (i == GREEN_PASS) {
+            double loss_perc = (float)blocks[i].total_bypassed / (float)blocks[i].total_arrivals;
+            global_loss[k] = loss_perc;
+        }
         global_means_p[k][i] = p / n;
-        printf("\nBatch #%d | Block %d: %f", k, i, p / n);
     }
 
     reset_statistics();
@@ -693,15 +702,15 @@ void init_config() {
     int slot2_conf_5[] = {14, 40, 3, 18, 20};
     int slot3_conf_5[] = {6, 18, 2, 8, 10};
 
-    /*// Config_5
-    int slot1_conf_5[] = {7, 20, 2, 9, 15};
-    int slot2_conf_5[] = {14, 40, 3, 18, 20};
-    int slot3_conf_5[] = {6, 18, 2, 8, 10};
-*/
+    // Config_5_bis
+    int slot1_conf_5_bis[] = {7, 20, 2, 9, 15};
+    int slot2_conf_5_bis[] = {14, 40, 3, 18, 20};
+    int slot3_conf_5_bis[] = {6, 18, 2, 8, 10};
+
     //config = get_config(slot1_conf, slot2_conf, slot3_conf);
     //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
     //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
-    // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
-    config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
+    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
+    //config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
+    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
 }
