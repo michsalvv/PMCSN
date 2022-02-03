@@ -50,7 +50,6 @@ struct clock_t clock;
 struct block blocks[NUM_BLOCKS];
 
 double arrival_rate;
-int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
 double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
 int completed;
 int dropped;
@@ -67,6 +66,7 @@ int stop_simulation;
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[200000];
+double repetitions_costs[NUM_REPETITIONS];
 
 // --------------------------------------------------------------------d----------------------------
 
@@ -97,17 +97,19 @@ int main(int argc, char *argv[]) {
         PlantSeeds(521312312);
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
+        double total = 0;
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
+            total += repetitions_costs[i];
+        }
+
+        printf("TOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        //run_batch_means(num_slot);
-        find_batch_b(num_slot);
+        run_batch_means(num_slot);
     } else {
         printf("Specify mode FINITE or INFINITE\n");
         exit(0);
     }
 }
-
-int last_jobs_block[5] = {0, 0, 0, 0, 0};
-int last_jobs_queue[5] = {0, 0, 0, 0, 0};
 
 void run_batch_means(int slot) {
     arrival_rate = lambdas[slot];
@@ -116,16 +118,22 @@ void run_batch_means(int slot) {
     clear_environment();
     init_config();
     init_network();
+    global_network_status.time_slot = slot;
     update_network();
+    char filename[30];
+    snprintf(filename, 30, "rt_infinite_%d.csv", slot);
     for (int k = 0; k < BATCH_K; k++) {
         infinite_horizon_simulation(slot, b, k);
     }
     FILE *csv;
-    csv = open_csv("rt_infinite.csv");
+    csv = open_csv(filename);
     for (int j = 0; j < BATCH_K; j++) {
         append_on_csv(csv, j, infinite_statistics[j], 0);
     }
     fclose(csv);
+    end_servers();
+    double cost = calculate_cost(&global_network_status);
+    printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
 }
 
 void find_batch_b(int slot) {
@@ -140,8 +148,8 @@ void find_batch_b(int slot) {
         for (int k = 0; k < 128; k++) {
             infinite_horizon_simulation(slot, b, k);
         }
-        char filename[20];
-        snprintf(filename, 20, "rt_inf_%d.csv", b);
+        char filename[30];
+        snprintf(filename, 30, "rt_batch_inf_%d.csv", b);
         FILE *csv;
         csv = open_csv(filename);
         for (int j = 0; j < 128; j++) {
@@ -195,7 +203,7 @@ void finite_horizon_simulation(int stop_time, int repetition) {
         }
     }
     end_servers();
-    print_real_cost(&global_network_status);
+    repetitions_costs[repetition] = calculate_cost(&global_network_status);
     //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
     calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
     print_line();
@@ -211,10 +219,9 @@ void finite_horizon_simulation(int stop_time, int repetition) {
 // TODO batch means
 void infinite_horizon_simulation(int slot, int b, int k) {
     int n = 0;
-
-    printf("\n\n==== Infinite Horizon Simulation for slot %d ====\n", slot);
+    printf("\n\n==== Infinite Horizon Simulation for slot %d | batch #%d====", slot, k);
+    print_line();
     global_network_status.time_slot = slot;
-    int simulation_time = infinites[slot];
     double old;
     while (n < b) {
         print_percentage(n, b, old);
@@ -238,8 +245,9 @@ void infinite_horizon_simulation(int slot, int b, int k) {
             process_completion(*nextCompletion);
         }
     }
-
+    print_line();
     calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
+    printf("slot #%d: System Total Response Time .......... = %1.6f\n", slot, infinite_statistics[k]);
     reset_statistics();
 }
 
@@ -670,7 +678,7 @@ void init_config() {
 
     // config = get_config(slot1_conf, slot2_conf, slot3_conf);
     // config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    // config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
     // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
 }

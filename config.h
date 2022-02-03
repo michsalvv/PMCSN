@@ -16,8 +16,6 @@
 #define USED 1
 #define NOTUSED 0
 
-#define NUM_REPETITIONS 64
-
 // Input Values
 #define LAMBDA_1 0.405556
 #define LAMBDA_2 0.829545
@@ -27,12 +25,6 @@
 #define TIME_SLOT_1 10800
 #define TIME_SLOT_2 39600
 #define TIME_SLOT_3 18000
-
-// Time Slot Infinite Values
-// TODO mettere i valori batch means con b e k
-#define TIME_SLOT_1_INF TIME_SLOT_1 * 150
-#define TIME_SLOT_2_INF TIME_SLOT_2 * 150
-#define TIME_SLOT_3_INF TIME_SLOT_3 * 150
 
 // Services Time
 #define SERV_TEMPERATURE_CTRL 15
@@ -55,8 +47,10 @@
 #define CM_TICKET_GATE_SERVER 1300
 #define CM_GREEN_PASS_SERVER 800
 
+// Numero di ripetizioni e batch
+#define NUM_REPETITIONS 128
 #define BATCH_B 1024
-#define BATCH_K 64
+#define BATCH_K 128
 
 #define handle_error(msg)   \
     do {                    \
