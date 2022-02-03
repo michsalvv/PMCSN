@@ -39,6 +39,7 @@ void write_rt_on_csv();
 void init_config();
 void find_batch_b(int slot);
 void reset_statistics();
+void run_batch_means(int num_slot);
 // ------------------------------------------------------------------------------------------------
 network_configuration config;
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
@@ -97,7 +98,8 @@ int main(int argc, char *argv[]) {
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        run_batch_means(num_slot);
+        //run_batch_means(num_slot);
+        find_batch_b(num_slot);
     } else {
         printf("Specify mode FINITE or INFINITE\n");
         exit(0);
@@ -135,14 +137,14 @@ void find_batch_b(int slot) {
         init_config();
         init_network();
         update_network();
-        for (int k = 0; k < BATCH_K; k++) {
+        for (int k = 0; k < 128; k++) {
             infinite_horizon_simulation(slot, b, k);
         }
         char filename[20];
         snprintf(filename, 20, "rt_inf_%d.csv", b);
         FILE *csv;
         csv = open_csv(filename);
-        for (int j = 0; j < BATCH_K; j++) {
+        for (int j = 0; j < 128; j++) {
             append_on_csv(csv, j, infinite_statistics[j], 0);
         }
         fclose(csv);

@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#define K    50                             /* K is the maximum lag */
+#define K    8                             /* K is the maximum lag */
 #define SIZE (K + 1)
 
   int main(void)
@@ -70,12 +70,12 @@
   for (j = 0; j <= K; j++)
     cosum[j] = (cosum[j] / (n - j)) - (mean * mean);
 
-  printf("for %ld data points\n", n);
-  printf("the mean is ... %8.2f\n", mean);
-  printf("the stdev is .. %8.2f\n\n", sqrt(cosum[0]));
-  printf("  j (lag)   r[j] (autocorrelation)\n");
-  for (j = 1; j < SIZE; j++)
-    printf("%3ld  %11.3f\n", j, cosum[j] / cosum[0]);
+  //printf("for %ld data points\n", n);
+  //printf("the mean is ... %8.2f\n", mean);
+  //printf("the stdev is .. %8.2f\n\n", sqrt(cosum[0]));
+  //printf("  j (lag)   r[j] (autocorrelation)\n");
+  for (j = 0; j < SIZE; j++)
+    printf("%11.3f\n", cosum[j] / cosum[0]);
 
   return (0);
 }
