@@ -52,9 +52,9 @@ struct block blocks[NUM_BLOCKS];
 double arrival_rate;
 int infinites[] = {TIME_SLOT_1_INF, TIME_SLOT_2_INF, TIME_SLOT_3_INF};
 double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
-int completed = 0;
-int dropped = 0;
-int bypassed = 0;
+int completed;
+int dropped;
+int bypassed;
 bool slot_switched[3];
 
 int streamID;            // Stream da selezionare per generare il tempo di servizio
@@ -166,6 +166,7 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     print_line();
     init_network();
     double old = 0;
+    int n = 1;
     while (clock.arrival <= stop_time) {
         print_percentage(clock.current, stop_time, old);
         old = clock.current;
@@ -188,12 +189,17 @@ void finite_horizon_simulation(int stop_time, int repetition) {
         } else {
             process_completion(*nextCompletion);
         }
+        if (clock.current >= (n - 1) * 300 && clock.current < (n)*300 && completed > 16 && clock.arrival < stop_time) {
+            calculate_statistics_clock(&global_network_status, blocks, clock.current);
+            n++;
+        }
     }
     end_servers();
     print_real_cost(&global_network_status);
     //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
     calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
     print_line();
+
     for (int i = 0; i < 3; i++) {
         printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
         statistics[repetition][i] = response_times[i];
@@ -450,6 +456,9 @@ void init_network() {
         set_time_slot();
     }
 
+    completed = 0;
+    bypassed = 0;
+    dropped = 0;
     clock.arrival = getArrival(clock.current);
     global_sorted_completions.num_completions = 0;
 }
@@ -659,9 +668,9 @@ void init_config() {
     int slot2_conf_5[] = {14, 40, 3, 18, 20};
     int slot3_conf_5[] = {6, 18, 2, 8, 10};
 
-    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
-    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    // config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    // config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+    config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
+    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
 }

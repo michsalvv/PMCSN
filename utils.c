@@ -11,6 +11,11 @@
 #include "DES/rvgs.h"
 #include "config.h"
 
+FILE *open_csv(char *filename);
+FILE *open_csv_appendMode(char *filename);
+void *append_on_csv(FILE *fpt, double ts, double p);
+void *append_on_csv_v2(FILE *fpt, double ts, double p);
+
 // Stampa a schermo una linea di separazione
 void print_line() {
     printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
@@ -228,6 +233,35 @@ void debug_routing() {
     exit(0);
 }
 
+void calculate_statistics_clock(network_status *network, struct block blocks[], double currentClock) {
+    char filename[31];
+    snprintf(filename, 31, "rt_fin_extended_conf3_Slot.csv");
+    FILE *csv;
+    csv = open_csv_appendMode(filename);
+
+    double system_total_wait = 0;
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        int m = network->num_online_servers[i];
+        int arr = blocks[i].total_arrivals;
+        int r_arr = arr - blocks[i].total_bypassed;
+        int jq = blocks[i].jobInQueue;
+        int inter = currentClock / blocks[i].total_arrivals;
+
+        double a_rate = blocks[i].total_arrivals / currentClock;
+        double ra_rate = r_arr / currentClock;
+        double s_rate = r_arr / blocks[i].area.service;
+
+        double wait = blocks[i].area.node / r_arr;
+        double delay = blocks[i].area.queue / r_arr;
+        double service = blocks[i].area.service / r_arr;
+        double utilization = ra_rate / (m * s_rate);
+
+        system_total_wait += wait;
+    }
+    append_on_csv_v2(csv, system_total_wait, currentClock);
+    fclose(csv);
+}
+
 // Calcola le statistiche specificate
 void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[]) {
     char type[20];
@@ -382,9 +416,20 @@ FILE *open_csv(char *filename) {
     return fpt;
 }
 
+FILE *open_csv_appendMode(char *filename) {
+    FILE *fpt;
+    fpt = fopen(filename, "a");
+    return fpt;
+}
+
 // Inserisce una nuova linea nel file csv specificato
 void *append_on_csv(FILE *fpt, double ts, double p) {
     fprintf(fpt, "%2.6f\n", ts);
+    return fpt;
+}
+
+void *append_on_csv_v2(FILE *fpt, double ts, double p) {
+    fprintf(fpt, "%2.6f; %2.6f\n", ts, p);
     return fpt;
 }
 
