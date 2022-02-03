@@ -418,7 +418,7 @@ void print_percentage(double part, double total, double oldPart) {
         fflush(stdout);
     }
     for (int j = percentage / 2; j < 50 - 1; j++) {
-        printf("'");
+        printf(" ");
     }
     printf("|");
     printf(" %02.0f%%", percentage + 1);

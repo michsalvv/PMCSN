@@ -11,9 +11,6 @@
 #include "math.h"
 #include "utils.h"
 
-//TODO iniziare con il metodo della replicazione per lo stato finito. Metterer un parametro da argv che è il numero di run.
-//TODO iniziare con il batch means per lo stato infinito. Vedere b e k come si dimensionano e togliere il alore TIME_SLOT*15 e mettere insomma i batch.
-
 // Function Prototypes
 // ------------------------------------------------------------------------------------------------
 double getArrival(double current);
@@ -31,8 +28,8 @@ void activate_servers();
 void deactivate_servers();
 void update_network();
 void repeat_finite(int stop_time, int repetitions);
-void finite_horizon_simulation(int stop, int repetition);
-void infinite_horizon_simulation(int slot, int b, int k);
+void finite_horizon_run(int stop, int repetition);
+void infinite_horizon_batch(int slot, int b, int k);
 void end_servers();
 void clear_environment();
 void write_rt_on_csv();
@@ -67,6 +64,7 @@ double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[200000];
 double repetitions_costs[NUM_REPETITIONS];
+double global_means_p[BATCH_K][NUM_BLOCKS];
 
 // --------------------------------------------------------------------d----------------------------
 
@@ -94,6 +92,8 @@ int main(int argc, char *argv[]) {
             exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
+        printf("\n\n==== Finite Horizon Simulation | sim_time %d | #repetitions #%d ====", stop_simulation, NUM_REPETITIONS);
+
         PlantSeeds(521312312);
         repeat_finite(stop_simulation, NUM_REPETITIONS);
         write_rt_on_csv();
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
             total += repetitions_costs[i];
         }
 
-        printf("TOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
+        printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         run_batch_means(num_slot);
     } else {
@@ -121,9 +121,11 @@ void run_batch_means(int slot) {
     global_network_status.time_slot = slot;
     update_network();
     char filename[30];
-    snprintf(filename, 30, "rt_infinite_%d.csv", slot);
+    snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
+    printf("\n\n==== Infinite Horizon Simulation for slot %d | #batch %d====", slot, BATCH_K);
     for (int k = 0; k < BATCH_K; k++) {
-        infinite_horizon_simulation(slot, b, k);
+        infinite_horizon_batch(slot, b, k);
+        print_percentage(k, BATCH_K, k - 1);
     }
     FILE *csv;
     csv = open_csv(filename);
@@ -134,6 +136,16 @@ void run_batch_means(int slot) {
     end_servers();
     double cost = calculate_cost(&global_network_status);
     printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
+
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+        double p = 0;
+        for (int i = 0; i < BATCH_K; i++) {
+            p += global_means_p[i][j];
+        }
+        printf("%f", p / BATCH_K);
+    }
+    printf("\n");
 }
 
 void find_batch_b(int slot) {
@@ -146,7 +158,7 @@ void find_batch_b(int slot) {
         init_network();
         update_network();
         for (int k = 0; k < 128; k++) {
-            infinite_horizon_simulation(slot, b, k);
+            infinite_horizon_batch(slot, b, k);
         }
         char filename[30];
         snprintf(filename, 30, "rt_batch_inf_%d.csv", b);
@@ -163,21 +175,18 @@ void find_batch_b(int slot) {
 void repeat_finite(int stop_time, int repetitions) {
     init_config();
     print_configuration(&config);
+
     for (int r = 0; r < repetitions; r++) {
-        finite_horizon_simulation(stop_time, r);
+        finite_horizon_run(stop_time, r);
+        print_percentage(r, repetitions, r - 1);
     }
 }
 
 // Esegue una singola run di simulazione ad orizzonte finito
-void finite_horizon_simulation(int stop_time, int repetition) {
-    printf("\n\n==== Finite Horizon Simulation | sim_time %d | repetition #%d ====", stop_time, repetition);
-    print_line();
+void finite_horizon_run(int stop_time, int repetition) {
     init_network();
-    double old = 0;
     int n = 1;
     while (clock.arrival <= stop_time) {
-        print_percentage(clock.current, stop_time, old);
-        old = clock.current;
         set_time_slot();
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
@@ -187,7 +196,6 @@ void finite_horizon_simulation(int stop_time, int repetition) {
             if (blocks[i].jobInBlock > 0) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
                 blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-                //blocks[i].area.service += (clock.next - clock.current);  //TODO Da togliere?? Utilizzazione non si calcola cosi, va calcolata per ogni server. La mettiamo a implementazione array server completata
             }
         }
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
@@ -204,28 +212,20 @@ void finite_horizon_simulation(int stop_time, int repetition) {
     }
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
-    //print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
     calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
-    print_line();
 
     for (int i = 0; i < 3; i++) {
-        printf("slot #%d: System Total Response Time .......... = %1.6f\n", i, response_times[i]);
         statistics[repetition][i] = response_times[i];
     }
     clear_environment();
 }
 
-// Esegue una singola run di simulazione ad orizzonte infinito
-// TODO batch means
-void infinite_horizon_simulation(int slot, int b, int k) {
+// Esegue un singolo batch ad orizzonte infinito
+void infinite_horizon_batch(int slot, int b, int k) {
     int n = 0;
-    printf("\n\n==== Infinite Horizon Simulation for slot %d | batch #%d====", slot, k);
-    print_line();
     global_network_status.time_slot = slot;
     double old;
     while (n < b) {
-        print_percentage(n, b, old);
-        old = n;
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
@@ -245,9 +245,21 @@ void infinite_horizon_simulation(int slot, int b, int k) {
             process_completion(*nextCompletion);
         }
     }
-    print_line();
     calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
-    printf("slot #%d: System Total Response Time .......... = %1.6f\n", slot, infinite_statistics[k]);
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        double p = 0;
+        int n = 0;
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server s = global_network_status.server_list[i][j];
+            if (s.used == 1) {
+                p += (s.sum.service / clock.current);
+                n++;
+            }
+        }
+        global_means_p[k][i] = p / n;
+        printf("\nBatch #%d | Block %d: %f", k, i, p / n);
+    }
+
     reset_statistics();
 }
 
@@ -638,9 +650,9 @@ void reset_statistics() {
 // Scrive i tempi di risposta del campione su un file csv
 void write_rt_on_csv() {
     FILE *csv;
-    char filename[13];
+    char filename[30];
     for (int j = 0; j < 3; j++) {
-        snprintf(filename, 13, "rt_slot%d.csv", j);
+        snprintf(filename, 30, "rt_finite_slot%d.csv", j);
         csv = open_csv(filename);
         for (int i = 0; i < NUM_REPETITIONS; i++) {
             append_on_csv(csv, i, statistics[i][j], 0);
@@ -671,14 +683,25 @@ void init_config() {
     int slot2_conf_4[] = {14, 41, 3, 17, 20};
     int slot3_conf_4[] = {8, 20, 2, 9, 10};
 
+    // Config_4_bis
+    int slot1_conf_4_bis[] = {8, 24, 2, 11, 14};
+    int slot2_conf_4_bis[] = {14, 41, 3, 17, 20};
+    int slot3_conf_4_bis[] = {8, 20, 2, 9, 10};
+
     // Config_5
     int slot1_conf_5[] = {7, 20, 2, 9, 15};
     int slot2_conf_5[] = {14, 40, 3, 18, 20};
     int slot3_conf_5[] = {6, 18, 2, 8, 10};
 
-    // config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    // config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    // config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    /*// Config_5
+    int slot1_conf_5[] = {7, 20, 2, 9, 15};
+    int slot2_conf_5[] = {14, 40, 3, 18, 20};
+    int slot3_conf_5[] = {6, 18, 2, 8, 10};
+*/
+    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
     // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
 }
