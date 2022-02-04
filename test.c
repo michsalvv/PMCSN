@@ -27,27 +27,31 @@ void set_time_slot(int rep);
 void activate_servers();
 void deactivate_servers();
 void update_network();
-void repeat_finite(int stop_time, int repetitions);
+void finite_horizon_simulation(int stop_time, int repetitions);
 void finite_horizon_run(int stop, int repetition);
 void infinite_horizon_batch(int slot, int b, int k);
 void end_servers();
 void clear_environment();
-void write_rt_on_csv();
+void write_rt_csv_finite();
+void write_rt_csv_infinite(int slot);
 void init_config();
 void find_batch_b(int slot);
 void reset_statistics();
-void run_batch_means(int num_slot);
+void infinite_horizon_simulation(int num_slot);
+void print_results_finite();
+void print_results_infinite(int slot);
 // ------------------------------------------------------------------------------------------------
 network_configuration config;
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
-network_status global_network_status;
+network_status global_network_status;          // Tiene lo stato complessivo della rete
+struct block blocks[NUM_BLOCKS];               // Mantiene lo stato dei singoli blocchi della rete
+struct clock_t clock;                          // Mantiene le informazioni sul clock di simulazione
 static const sorted_completions empty_sorted;
 static const network_status empty_network;
-struct clock_t clock;
-struct block blocks[NUM_BLOCKS];
 
 double arrival_rate;
 double lambdas[] = {LAMBDA_1, LAMBDA_2, LAMBDA_3};
+int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 int completed;
 int dropped;
 int bypassed;
@@ -67,7 +71,6 @@ double repetitions_costs[NUM_REPETITIONS];
 double global_means_p[BATCH_K][NUM_BLOCKS];
 double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
 double global_loss[BATCH_K];
-
 // --------------------------------------------------------------------d----------------------------
 
 int main(int argc, char *argv[]) {
@@ -78,48 +81,17 @@ int main(int argc, char *argv[]) {
     simulation_mode = argv[1];
     num_slot = atoi(argv[2]);
 
-    switch (num_slot) {
-        case 0:
-            stop_simulation = TIME_SLOT_1;
-            break;
-        case 1:
-            stop_simulation = TIME_SLOT_1 + TIME_SLOT_2;
-            break;
-        case 2:
-            stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
-            break;
-
-        default:
-            printf("Specify time slot between 0 and 2\n");
-            exit(0);
+    if (num_slot > 2) {
+        printf("Specify time slot between 0 and 2\n");
+        exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        printf("\n\n==== Finite Horizon Simulation | sim_time %d | #repetitions #%d ====", stop_simulation, NUM_REPETITIONS);
-
         PlantSeeds(521312312);
-        repeat_finite(stop_simulation, NUM_REPETITIONS);
-        write_rt_on_csv();
-        double total = 0;
-        for (int i = 0; i < NUM_REPETITIONS; i++) {
-            total += repetitions_costs[i];
-        }
-
-        printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
-        for (int s = 0; s < 3; s++) {
-            printf("\nSlot #%d:", s);
-            for (int j = 0; j < NUM_BLOCKS; j++) {
-                printf("\nMean Utilization for block %s: ", stringFromEnum(j));
-                double p = 0;
-                for (int i = 0; i < NUM_REPETITIONS; i++) {
-                    p += global_means_p_fin[i][s][j];
-                }
-                printf("%f", p / NUM_REPETITIONS);
-            }
-        }
+        finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        // find_batch_b(num_slot);
-        run_batch_means(num_slot);
+        PlantSeeds(521312312);
+        infinite_horizon_simulation(num_slot);
 
     } else {
         printf("Specify mode FINITE or INFINITE\n");
@@ -127,49 +99,40 @@ int main(int argc, char *argv[]) {
     }
 }
 
-void run_batch_means(int slot) {
+// Esegue le ripetizioni di singole run a orizzonte finito
+void finite_horizon_simulation(int stop_time, int repetitions) {
+    printf("\n\n==== Finite Horizon Simulation | sim_time %d | #repetitions #%d ====", stop_simulation, NUM_REPETITIONS);
+    init_config();
+    print_configuration(&config);
+    for (int r = 0; r < repetitions; r++) {
+        finite_horizon_run(stop_time, r);
+        print_percentage(r, repetitions, r - 1);
+    }
+    write_rt_csv_finite();
+    print_results_finite();
+}
+
+// Esegue una simulazione ad orizzonte infinito tramite il metodo delle batch means
+void infinite_horizon_simulation(int slot) {
+    printf("\n\n==== Infinite Horizon Simulation for slot %d | #batch %d====", slot, BATCH_K);
+    init_config();
+    print_configuration(&config);
     arrival_rate = lambdas[slot];
     int b = BATCH_B;
-    PlantSeeds(521312312);
     clear_environment();
-    init_config();
     init_network(0);
     global_network_status.time_slot = slot;
     update_network();
-    char filename[30];
-    snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
-    printf("\n\n==== Infinite Horizon Simulation for slot %d | #batch %d====", slot, BATCH_K);
-    print_configuration(&config);
     for (int k = 0; k < BATCH_K; k++) {
         infinite_horizon_batch(slot, b, k);
         print_percentage(k, BATCH_K, k - 1);
     }
-    FILE *csv;
-    csv = open_csv(filename);
-    for (int j = 0; j < BATCH_K; j++) {
-        append_on_csv(csv, j, infinite_statistics[j], 0);
-    }
-    fclose(csv);
+    write_rt_csv_infinite(slot);
     end_servers();
-    double cost = calculate_cost(&global_network_status);
-    printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
-
-    double l = 0;
-    for (int j = 0; j < NUM_BLOCKS; j++) {
-        printf("\nMean Utilization for block %s: ", stringFromEnum(j));
-        double p = 0;
-        for (int i = 0; i < BATCH_K; i++) {
-            p += global_means_p[i][j];
-            if (j == GREEN_PASS) {
-                l += global_loss[i];
-            }
-        }
-        printf("%f", p / BATCH_K);
-    }
-    printf("\nGREEN PASS LOSS PERC %f: ", l / BATCH_K);
-    printf("\n");
+    print_results_infinite(slot);
 }
 
+// Esegue diverse run di batch mean con diversi valori di b
 void find_batch_b(int slot) {
     arrival_rate = lambdas[slot];
     int b = 64;
@@ -190,17 +153,6 @@ void find_batch_b(int slot) {
             append_on_csv(csv, j, infinite_statistics[j], 0);
         }
         fclose(csv);
-    }
-}
-
-// Esegue le ripetizioni di singole run a orizzonte finito
-void repeat_finite(int stop_time, int repetitions) {
-    init_config();
-    print_configuration(&config);
-
-    for (int r = 0; r < repetitions; r++) {
-        finite_horizon_run(stop_time, r);
-        print_percentage(r, repetitions, r - 1);
     }
 }
 
@@ -671,8 +623,20 @@ void reset_statistics() {
     }
 }
 
-// Scrive i tempi di risposta del campione su un file csv
-void write_rt_on_csv() {
+// Scrive i tempi di risposta a tempo infinito su un file csv
+void write_rt_csv_infinite(int slot) {
+    char filename[30];
+    snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
+    FILE *csv;
+    csv = open_csv(filename);
+    for (int j = 0; j < BATCH_K; j++) {
+        append_on_csv(csv, j, infinite_statistics[j], 0);
+    }
+    fclose(csv);
+}
+
+// Scrive i tempi di risposta a tempo finito su un file csv
+void write_rt_csv_finite() {
     FILE *csv;
     char filename[30];
     for (int j = 0; j < 3; j++) {
@@ -683,6 +647,48 @@ void write_rt_on_csv() {
         }
         fclose(csv);
     }
+}
+
+// Stampa il costo e l'utilizzazione media ad orizzonte finito
+void print_results_finite() {
+    double total = 0;
+    for (int i = 0; i < NUM_REPETITIONS; i++) {
+        total += repetitions_costs[i];
+    }
+
+    printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
+    for (int s = 0; s < 3; s++) {
+        printf("\nSlot #%d:", s);
+        for (int j = 0; j < NUM_BLOCKS; j++) {
+            printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+            double p = 0;
+            for (int i = 0; i < NUM_REPETITIONS; i++) {
+                p += global_means_p_fin[i][s][j];
+            }
+            printf("%f", p / NUM_REPETITIONS);
+        }
+    }
+}
+
+// Stampa il costo e l'utilizzazione media ad orizzonte infinito
+void print_results_infinite(int slot) {
+    double cost = calculate_cost(&global_network_status);
+    printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
+
+    double l = 0;
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+        double p = 0;
+        for (int i = 0; i < BATCH_K; i++) {
+            p += global_means_p[i][j];
+            if (j == GREEN_PASS) {
+                l += global_loss[i];
+            }
+        }
+        printf("%f", p / BATCH_K);
+    }
+    printf("\nGREEN PASS LOSS PERC %f: ", l / BATCH_K);
+    printf("\n");
 }
 
 // Setta la configurazione di avvio specificata
