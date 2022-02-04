@@ -249,8 +249,8 @@ void debug_routing() {
 }
 
 void calculate_statistics_clock(network_status *network, struct block blocks[], double currentClock) {
-    char filename[31];
-    snprintf(filename, 31, "rt_fin_extended_conf3_Slot.csv");
+    char filename[21];
+    snprintf(filename, 21, "continuos_finite.csv");
     FILE *csv;
     csv = open_csv_appendMode(filename);
 
