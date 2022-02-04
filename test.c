@@ -699,7 +699,7 @@ void init_config() {
 
     // Config_5
     int slot1_conf_5[] = {7, 20, 2, 9, 15};
-    int slot2_conf_5[] = {14, 40, 3, 18, 20};
+    int slot2_conf_5[] = {14, 40, 3, 16, 20};
     int slot3_conf_5[] = {6, 18, 2, 8, 10};
 
     // Config_5_bis
@@ -709,12 +709,16 @@ void init_config() {
 
     // OTTIMO FASCIA 1
     //int slot1_conf_5_bis[] = {7, 20, 2, 8, 11};
+    int slot1_conf_6[] = {15, 42, 4, 20, 25};
+    int slot2_conf_6[] = {18, 42, 5, 22, 25};
+    int slot3_conf_6[] = {10, 30, 3, 12, 16};
 
-    //config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
-    //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    //config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
-    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
-    config = get_config(slot1_conf_5_bis, slot2_conf_5_bis, slot3_conf_5_bis);
+    // config = get_config(slot1_conf, slot2_conf, slot3_conf);
+    // config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
+    // config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
+    // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
+    // config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
+    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    // config = get_config(slot1_conf_6, slot2_conf_6, slot3_conf_6);
+    // config = get_config(slot1_conf_5_bis, slot2_conf_5_bis, slot3_conf_5_bis);
 }

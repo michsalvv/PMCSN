@@ -16,6 +16,8 @@
 #define USED 1
 #define NOTUSED 0
 
+#define NUM_REPETITIONS 128
+
 // Input Values
 #define LAMBDA_1 0.405556
 #define LAMBDA_2 0.829545
