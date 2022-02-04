@@ -21,9 +21,9 @@ double findNextEvent(double nextArrival, struct block *services, server **server
 double getService(enum block_types type, int stream);
 void process_arrival();
 void process_completion(compl completion);
-void init_network();
+void init_network(int rep);
 void init_blocks();
-void set_time_slot();
+void set_time_slot(int rep);
 void activate_servers();
 void deactivate_servers();
 void update_network();
@@ -65,6 +65,7 @@ double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[200000];
 double repetitions_costs[NUM_REPETITIONS];
 double global_means_p[BATCH_K][NUM_BLOCKS];
+double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
 double global_loss[BATCH_K];
 
 // --------------------------------------------------------------------d----------------------------
@@ -104,6 +105,18 @@ int main(int argc, char *argv[]) {
         }
 
         printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
+        for (int s = 0; s < 3; s++) {
+            printf("\nSlot #%d:", s);
+            for (int j = 0; j < NUM_BLOCKS; j++) {
+                printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+                double p = 0;
+                for (int i = 0; i < NUM_REPETITIONS; i++) {
+                    p += global_means_p_fin[i][s][j];
+                }
+                printf("%f", p / NUM_REPETITIONS);
+            }
+        }
+
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         // find_batch_b(num_slot);
         run_batch_means(num_slot);
@@ -120,7 +133,7 @@ void run_batch_means(int slot) {
     PlantSeeds(521312312);
     clear_environment();
     init_config();
-    init_network();
+    init_network(0);
     global_network_status.time_slot = slot;
     update_network();
     char filename[30];
@@ -164,7 +177,7 @@ void find_batch_b(int slot) {
         PlantSeeds(521312312);
         clear_environment();
         init_config();
-        init_network();
+        init_network(0);
         update_network();
         for (int k = 0; k < 128; k++) {
             infinite_horizon_batch(slot, b, k);
@@ -193,10 +206,10 @@ void repeat_finite(int stop_time, int repetitions) {
 
 // Esegue una singola run di simulazione ad orizzonte finito
 void finite_horizon_run(int stop_time, int repetition) {
-    init_network();
+    init_network(0);
     int n = 1;
     while (clock.arrival <= stop_time) {
-        set_time_slot();
+        set_time_slot(repetition);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
@@ -221,7 +234,7 @@ void finite_horizon_run(int stop_time, int repetition) {
     }
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
-    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
+    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
 
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
@@ -474,7 +487,7 @@ server *findFreeServer(struct block b) {
 }
 
 // Inizializza tutti i blocchi del sistema
-void init_network() {
+void init_network(int rep) {
     streamID = 0;
     clock.current = START;
     for (int i = 0; i < 3; i++) {
@@ -484,7 +497,7 @@ void init_network() {
 
     init_blocks();
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        set_time_slot();
+        set_time_slot(rep);
     }
 
     completed = 0;
@@ -529,7 +542,7 @@ void init_blocks() {
 }
 
 // Cambia la fascia oraria settando il tasso di arrivo ed attivando/disattivando i server necessari
-void set_time_slot() {
+void set_time_slot(int rep) {
     if (clock.current == START) {
         global_network_status.time_slot = 0;
         arrival_rate = LAMBDA_1;
@@ -537,7 +550,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, rep);
 
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
@@ -545,7 +558,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, rep);
 
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
@@ -676,46 +689,52 @@ void write_rt_on_csv() {
 void init_config() {
     int slot_null[] = {0, 0, 0, 0, 0};
 
-    // Infinite Slot 0 Config 1 [infinita]
+    // Slot 0 Config 1 [infinita]
     int slot0_conf_1[] = {3, 20, 1, 5, 15};
 
-    // Infinite Slot 0 Config 2 [non-ottima]
+    // Slot 0 Config 2 [non-ottima]
     int slot0_conf_2[] = {10, 30, 3, 20, 15};
 
-    // Infinite Slot 0 Config 4 [infinita]
+    // Slot 0 Config 4 [infinita]
     int slot0_conf_4[] = {8, 24, 1, 11, 14};
 
-    // Infinite Slot 0 Config 4_bis [non-ottima]
+    // Slot 0 Config 4_bis [non-ottima]
     int slot0_conf_4_bis[] = {8, 24, 2, 11, 14};
 
-    // Infinite Slot 0 Config 5 [non-ottima]
+    // Slot 0 Config 5 [non-ottima]
     int slot0_conf_5[] = {7, 20, 2, 9, 15};
 
-    // Infinite Slot 0 Config 5_bis [OTTIMO]
+    // Slot 0 Config 5_bis [OTTIMO]
     int slot0_conf_5_bis[] = {7, 20, 2, 8, 11};
 
-    // Infinite Slot 1 Config 1 [non-ottima]
+    // Slot 1 Config 1 [non-ottima]
     int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
-    // Infinite Slot 1 Co nfig 2 [OTTIMO]
+    // Slot 1 Connfig 2 [OTTIMO]
     int slot1_conf_2[] = {14, 40, 3, 16, 20};
 
-    // Infinite Slot 1 Config 3 [infinita]
+    // Slot 1 Config 3 [infinita]
     int slot1_conf_3[] = {10, 30, 1, 12, 14};
 
-    // Infinite Slot 2 Config 1 [non-ottima]
+    // Slot 2 Config 1 [non-ottima]
     int slot2_conf_1[] = {10, 30, 3, 12, 16};
 
-    // Infinite Slot 2 Config 2 [OTTIMO]
+    // Slot 2 Config 2 [OTTIMO]
     int slot2_conf_2[] = {6, 18, 2, 8, 10};
 
-    // Infinite Slot 2 Config 3 [infinita]
+    // Slot 2 Config 3 [infinita]
     int slot2_conf_3[] = {4, 14, 1, 6, 7};
 
-    // Infinite Slot 2 Config 3 [non-ottima e spropositata nei costi]
+    // Slot 2 Config 4 [non-ottima e spropositata nei costi]
     int slot2_conf_4[] = {15, 45, 5, 18, 30};
 
-    // Configurazioni Infinite Horizon Slot 0
+    /* 
+    * =================
+    * SIMULAZIONE INFINITA
+    * =================
+    */
+
+    // Configurazioni Infinite Horizon Slot 1
     // config = get_config(slot0_conf_1, slot_null, slot_null);
     // config = get_config(slot0_conf_2, slot_null, slot_null);
     // config = get_config(slot0_conf_4, slot_null, slot_null);
@@ -725,7 +744,7 @@ void init_config() {
 
     // Configurazioni Infinite Horizon Slot 1
     // config = get_config(slot_null, slot1_conf_1, slot_null);
-    // config = get_config(slot_null, slot1_conf_2, slot_null);                     // OTTIMA
+    // config = get_config(slot_null, slot1_conf_2, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 2
     // config = get_config(slot_null, slot_null, slot2_conf_1);
@@ -747,7 +766,7 @@ void init_config() {
     // config = get_config(slot0_conf_1, slot1_conf_3, slot2_conf_3);
 
     // Scenario 4: configurazione ottima
-    // config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+    //config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
 
     // Scenario 5: configurazione ottima solo per fascia centrale, la più affollata
     // config = get_config(slot0_conf_5, slot1_conf_2, slot2_conf_1);
@@ -756,5 +775,11 @@ void init_config() {
     // config = get_config(slot0_conf_5_bis, slot1_conf_1, slot2_conf_3);
 
     // Scenario 7: non-ottima, infinita, non-ottima con molti server
-    config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
+    // config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
+
+    // Scenario 8: configurazione in cui non rispettiamo il QoS
+    int s1[] = {7, 19, 2, 8, 11};
+    int s2[] = {14, 38, 3, 16, 20};
+    int s3[] = {6, 18, 2, 8, 10};
+    config = get_config(s1, s2, s3);
 }

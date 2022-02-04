@@ -16,7 +16,7 @@ void print_network_status(network_status *network);
 double print_cost_theor(network_configuration conf);
 void print_percentage(double part, double total, double oldPart);
 int str_compare(char *str1, char *str2);
-void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[]);
+void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep);
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos);
 void calculate_statistics_clock(network_status *network, struct block blocks[], double currentClock);
 void print_line();

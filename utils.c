@@ -278,7 +278,7 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
 }
 
 // Calcola le statistiche specificate
-void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[]) {
+void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep) {
     char type[20];
     double system_total_wait = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -298,8 +298,19 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
         double utilization = ra_rate / (m * s_rate);
-
         system_total_wait += wait;
+
+        double p = 0;
+        int n = 0;
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server s = network->server_list[i][j];
+            if (s.used == 1) {
+                p += (s.sum.service / currentClock);
+                n++;
+            }
+
+            p_arr[rep][network->time_slot][i] = p / n;
+        }
     }
     rt_arr[network->time_slot] = system_total_wait;
 }
@@ -327,7 +338,7 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
 }
 
 // Stampa a schermo le statistiche calcolate
-void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls, int rep) {
+void print_statistics(network_status *network, struct block blocks[], double currentClock, sorted_completions *compls) {
     char type[20];
     double system_total_wait = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -348,6 +359,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("\n\n======== Result for block %s ========\n", type);
         printf("Number of Servers ................... = %d\n", m);
         printf("Arrivals ............................ = %d\n", arr);
+        printf("Completions.......................... = %d\n", blocks[i].total_completions);
         printf("Job in Queue at the end ............. = %d\n", jq);
         printf("Average interarrivals................ = %6.6f\n", inter);
 
@@ -363,12 +375,17 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Average # in the node ............... = %6.6f\n", blocks[i].area.node / currentClock);
 
         printf("\n    server     utilization     avg service\n");
+        double p = 0;
+        int n = 0;
         for (int j = 0; j < MAX_SERVERS; j++) {
             server s = network->server_list[i][j];
             if (s.used == 1) {
                 printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
+                p += s.sum.service / currentClock;
+                n++;
             }
         }
+        printf("\nSlot #%d: Mean Utilization .................... = %1.6f\n", network->time_slot, p / n);
     }
     printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
 }
@@ -445,10 +462,9 @@ void *append_on_csv_v2(FILE *fpt, double ts, double p) {
 // Stampa la configurazione di avvio
 void print_configuration(network_configuration *config) {
     for (int slot = 0; slot < 3; slot++) {
-        printf("FASCIA #%d\n", slot);
+        printf("\nFASCIA #%d\n", slot);
         for (int block = 0; block < NUM_BLOCKS; block++) {
             printf("...%s: %d\n", stringFromEnum(block), config->slot_config[slot][block]);
         }
-        printf("\n");
     }
 }
