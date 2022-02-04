@@ -105,7 +105,9 @@ int main(int argc, char *argv[]) {
 
         printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
+        // find_batch_b(num_slot);
         run_batch_means(num_slot);
+
     } else {
         printf("Specify mode FINITE or INFINITE\n");
         exit(0);
@@ -719,6 +721,5 @@ void init_config() {
     // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
     // config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
     config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
-    // config = get_config(slot1_conf_6, slot2_conf_6, slot3_conf_6);
     // config = get_config(slot1_conf_5_bis, slot2_conf_5_bis, slot3_conf_5_bis);
 }

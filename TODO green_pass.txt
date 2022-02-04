@@ -1,7 +1,0 @@
-controllo green pass a campione perchè non impediscono di salire senza green pass lo controllano poi sul treno se passa il controllore
-
-abbiamo quindi una probabilità di 0.6 di imboccare diretti al treno e 0.4 di andare al green pass
-
-si può anche diminuire il tempo di servizio che 10 secondi sono tanti se ci pensi tipo 5 sec
-
-il fatto è che ora abbiamo 15 controllori di green pass ma saranno massimo 2-3 in giro sui binari
