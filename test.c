@@ -105,7 +105,9 @@ int main(int argc, char *argv[]) {
 
         printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
+        // find_batch_b(num_slot);
         run_batch_means(num_slot);
+
     } else {
         printf("Specify mode FINITE or INFINITE\n");
         exit(0);
@@ -672,53 +674,55 @@ void write_rt_on_csv() {
 
 // Setta la configurazione di avvio specificata
 void init_config() {
-    // Config 1
-    int slot1_conf[] = {3, 20, 1, 5, 15};
-    int slot2_conf[] = {5, 45, 4, 15, 25};
-    int slot3_conf[] = {2, 10, 1, 3, 15};
+    int slot_null = {0, 0, 0, 0, 0};
 
-    // Config_2
-    int slot1_conf_2[] = {10, 30, 3, 20, 15};
-    int slot2_conf_2[] = {15, 45, 4, 15, 20};
-    int slot3_conf_2[] = {12, 20, 2, 40, 10};
+    // Infinite Slot 0 Config 1 [infinita]
+    int slot0_conf_1[] = {3, 20, 1, 5, 15};
 
-    // Config_3
-    int slot1_conf_3[] = {3, 27, 2, 10, 15};
-    int slot2_conf_3[] = {5, 39, 3, 15, 25};
-    int slot3_conf_3[] = {3, 21, 2, 10, 15};
+    // Infinite Slot 0 Config 2 [non-ottima]
+    int slot0_conf_2[] = {10, 30, 3, 20, 15};
 
-    // Config_4
-    int slot1_conf_4[] = {8, 24, 1, 11, 14};
-    int slot2_conf_4[] = {14, 41, 3, 17, 20};
-    int slot3_conf_4[] = {8, 20, 2, 9, 10};
+    // Infinite Slot 0 Config 4 [infinita]
+    int slot0_conf_4[] = {8, 24, 1, 11, 14};
 
-    // Config_4_bis
-    int slot1_conf_4_bis[] = {8, 24, 2, 11, 14};
-    int slot2_conf_4_bis[] = {14, 41, 3, 17, 20};
-    int slot3_conf_4_bis[] = {8, 20, 2, 9, 10};
+    // Infinite Slot 0 Config 4_bis [non-ottima]
+    int slot0_conf_4_bis[] = {8, 24, 2, 11, 14};
 
-    // Config_5
-    int slot1_conf_5[] = {7, 20, 2, 9, 15};
-    int slot2_conf_5[] = {14, 40, 3, 16, 20};
-    int slot3_conf_5[] = {6, 18, 2, 8, 10};
+    // Infinite Slot 0 Config 5 [non-ottima]
+    int slot0_conf_5[] = {7, 20, 2, 9, 15};
 
-    // Config_5_bis
-    int slot1_conf_5_bis[] = {7, 20, 2, 8, 11};
-    int slot2_conf_5_bis[] = {14, 40, 3, 18, 20};
-    int slot3_conf_5_bis[] = {6, 18, 2, 8, 10};
+    // Infinite Slot 0 Config 5_bis [OTTIMO]
+    int slot0_conf_5_bis[] = {7, 20, 2, 8, 11};
 
-    // OTTIMO FASCIA 1
-    //int slot1_conf_5_bis[] = {7, 20, 2, 8, 11};
-    int slot1_conf_6[] = {15, 42, 4, 20, 25};
-    int slot2_conf_6[] = {18, 42, 5, 22, 25};
-    int slot3_conf_6[] = {10, 30, 3, 12, 16};
+    // Infinite Slot 1 Config 1 [non-ottima]
+    int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
-    // config = get_config(slot1_conf, slot2_conf, slot3_conf);
-    // config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
-    // config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
-    // config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
-    // config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
-    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
-    // config = get_config(slot1_conf_6, slot2_conf_6, slot3_conf_6);
-    // config = get_config(slot1_conf_5_bis, slot2_conf_5_bis, slot3_conf_5_bis);
+    // Infinite Slot 1 Config 2 [OTTIMO]
+    int slot1_conf_2[] = {14, 40, 3, 16, 20};
+
+    // Infinite Slot 2 Config 1 [non-ottima]
+    int slot2_conf_1[] = {10, 30, 3, 12, 16};
+
+    // Infinite Slot 2 Config 2 [OTTIMO]
+    int slot2_conf_2[] = {6, 18, 2, 8, 10};
+
+    // Configurazioni Infinite Horizon Slot 0
+    config = get_config(slot0_conf_1, slot_null, slot_null);
+    config = get_config(slot0_conf_2, slot_null, slot_null);
+    config = get_config(slot0_conf_4, slot_null, slot_null);
+    config = get_config(slot0_conf_4_bis, slot_null, slot_null);
+    config = get_config(slot0_conf_4_bis, slot_null, slot_null);
+    config = get_config(slot0_conf_5, slot_null, slot_null);
+    config = get_config(slot0_conf_5_bis, slot_null, slot_null);
+
+    // Configurazioni Infinite Horizon Slot 1
+    config = get_config(slot_null, slot1_conf_1, slot_null);
+    config = get_config(slot_null, slot1_conf_2, slot_null);
+
+    // Configurazioni Infinite Horizon Slot 2
+    config = get_config(slot_null, slot_null, slot2_conf_1);
+    config = get_config(slot_null, slot_null, slot2_conf_2);
+
+    // Ottima Simulazione Finita
+    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
 }
