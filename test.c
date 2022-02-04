@@ -124,6 +124,7 @@ void run_batch_means(int slot) {
     char filename[30];
     snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
     printf("\n\n==== Infinite Horizon Simulation for slot %d | #batch %d====", slot, BATCH_K);
+    print_configuration(&config);
     for (int k = 0; k < BATCH_K; k++) {
         infinite_horizon_batch(slot, b, k);
         print_percentage(k, BATCH_K, k - 1);
@@ -268,7 +269,6 @@ void infinite_horizon_batch(int slot, int b, int k) {
         }
         global_means_p[k][i] = p / n;
     }
-
     reset_statistics();
 }
 
@@ -703,7 +703,7 @@ void init_config() {
     int slot3_conf_5[] = {6, 18, 2, 8, 10};
 
     // Config_5_bis
-    int slot1_conf_5_bis[] = {7, 20, 2, 9, 15};
+    int slot1_conf_5_bis[] = {7, 20, 2, 8, 11};
     int slot2_conf_5_bis[] = {14, 40, 3, 18, 20};
     int slot3_conf_5_bis[] = {6, 18, 2, 8, 10};
 
@@ -712,5 +712,6 @@ void init_config() {
     //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
     //config = get_config(slot1_conf_4, slot2_conf_4, slot3_conf_4);
     //config = get_config(slot1_conf_4_bis, slot2_conf_4_bis, slot3_conf_4_bis);
-    config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    // config = get_config(slot1_conf_5, slot2_conf_5, slot3_conf_5);
+    config = get_config(slot1_conf_5_bis, slot2_conf_5_bis, slot3_conf_5_bis);
 }

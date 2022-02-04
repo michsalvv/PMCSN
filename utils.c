@@ -317,14 +317,9 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
         int jq = blocks[i].jobInQueue;
         int inter = currentClock / blocks[i].total_arrivals;
 
-        double a_rate = blocks[i].total_arrivals / currentClock;
-        double ra_rate = r_arr / currentClock;
-        double s_rate = r_arr / blocks[i].area.service;
-
-        double wait = blocks[i].area.node / r_arr;
+        double wait = blocks[i].area.node / arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
-        double utilization = ra_rate / (m * s_rate);
 
         system_total_wait += wait;
     }
@@ -342,16 +337,11 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         int arr = blocks[i].total_arrivals;
         int r_arr = arr - blocks[i].total_bypassed;
         int jq = blocks[i].jobInQueue;
-        int inter = currentClock / blocks[i].total_arrivals;
-
-        double a_rate = blocks[i].total_arrivals / currentClock;
-        double ra_rate = r_arr / currentClock;
-        double s_rate = r_arr / blocks[i].area.service;
+        double inter = currentClock / blocks[i].total_arrivals;
 
         double wait = blocks[i].area.node / r_arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
-        double utilization = ra_rate / (m * s_rate);
 
         system_total_wait += wait;
 
@@ -359,9 +349,13 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("Number of Servers ................... = %d\n", m);
         printf("Arrivals ............................ = %d\n", arr);
         printf("Job in Queue at the end ............. = %d\n", jq);
-        printf("Average interarrivals................ = %6.6f\n", currentClock / blocks[i].total_arrivals);
+        printf("Average interarrivals................ = %6.6f\n", inter);
 
         printf("Average wait ........................ = %6.6f\n", wait);
+        if (i == GREEN_PASS) {
+            printf("Average wait (2)..................... = %6.6f\n", blocks[i].area.node / blocks[i].total_arrivals);
+            printf("Number bypassed ..................... = %d\n", blocks[i].total_bypassed);
+        }
         printf("Average delay ....................... = %6.6f\n", delay);
         printf("Average service time ................ = %6.6f\n", service);
 

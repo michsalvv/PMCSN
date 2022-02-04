@@ -1,0 +1,16 @@
+======== Result for block GREEN_PASS ========
+Number of Servers ................... = 10
+Arrivals ............................ = 1015
+Job in Queue at the end ............. = 0
+Average interarrivals................ = 317.564532
+Average wait ........................ = 31.954578
+Average wait (2)..................... = 20.809829
+Number bypassed ..................... = 354
+Average delay ....................... = 0.000000
+Average service time ................ = 31.977836
+Average # in the queue .............. = 0.000000
+Average # in the node ............... = 0.065529
+
+wait 2 è l'attesa media di uno che entra in blocco green pass (servito o bypassato). Quindi faccio di media
+
+[(1015 - 354) * 31.954578 + (354) * 0 = 20.809829] / 1015
