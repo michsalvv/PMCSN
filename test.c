@@ -707,6 +707,9 @@ void init_config() {
     int slot2_conf_5_bis[] = {14, 40, 3, 18, 20};
     int slot3_conf_5_bis[] = {6, 18, 2, 8, 10};
 
+    // OTTIMO FASCIA 1
+    //int slot1_conf_5_bis[] = {7, 20, 2, 8, 11};
+
     //config = get_config(slot1_conf, slot2_conf, slot3_conf);
     //config = get_config(slot1_conf_2, slot2_conf_2, slot3_conf_2);
     //config = get_config(slot1_conf_3, slot2_conf_3, slot3_conf_3);
