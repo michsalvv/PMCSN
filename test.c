@@ -674,7 +674,7 @@ void write_rt_on_csv() {
 
 // Setta la configurazione di avvio specificata
 void init_config() {
-    int slot_null = {0, 0, 0, 0, 0};
+    int slot_null[] = {0, 0, 0, 0, 0};
 
     // Infinite Slot 0 Config 1 [infinita]
     int slot0_conf_1[] = {3, 20, 1, 5, 15};
@@ -697,8 +697,11 @@ void init_config() {
     // Infinite Slot 1 Config 1 [non-ottima]
     int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
-    // Infinite Slot 1 Config 2 [OTTIMO]
+    // Infinite Slot 1 Co nfig 2 [OTTIMO]
     int slot1_conf_2[] = {14, 40, 3, 16, 20};
+
+    // Infinite Slot 1 Config 3 [infinita]
+    int slot1_conf_3[] = {10, 30, 1, 12, 14};
 
     // Infinite Slot 2 Config 1 [non-ottima]
     int slot2_conf_1[] = {10, 30, 3, 12, 16};
@@ -706,23 +709,52 @@ void init_config() {
     // Infinite Slot 2 Config 2 [OTTIMO]
     int slot2_conf_2[] = {6, 18, 2, 8, 10};
 
+    // Infinite Slot 2 Config 3 [infinita]
+    int slot2_conf_3[] = {4, 14, 1, 6, 7};
+
+    // Infinite Slot 2 Config 3 [non-ottima e spropositata nei costi]
+    int slot2_conf_4[] = {15, 45, 5, 18, 30};
+
     // Configurazioni Infinite Horizon Slot 0
-    config = get_config(slot0_conf_1, slot_null, slot_null);
-    config = get_config(slot0_conf_2, slot_null, slot_null);
-    config = get_config(slot0_conf_4, slot_null, slot_null);
-    config = get_config(slot0_conf_4_bis, slot_null, slot_null);
-    config = get_config(slot0_conf_4_bis, slot_null, slot_null);
-    config = get_config(slot0_conf_5, slot_null, slot_null);
-    config = get_config(slot0_conf_5_bis, slot_null, slot_null);
+    // config = get_config(slot0_conf_1, slot_null, slot_null);
+    // config = get_config(slot0_conf_2, slot_null, slot_null);
+    // config = get_config(slot0_conf_4, slot_null, slot_null);
+    // config = get_config(slot0_conf_4_bis, slot_null, slot_null);
+    // config = get_config(slot0_conf_5, slot_null, slot_null);                     // OTTIMA
+    // config = get_config(slot0_conf_5_bis, slot_null, slot_null);
 
     // Configurazioni Infinite Horizon Slot 1
-    config = get_config(slot_null, slot1_conf_1, slot_null);
-    config = get_config(slot_null, slot1_conf_2, slot_null);
+    // config = get_config(slot_null, slot1_conf_1, slot_null);
+    // config = get_config(slot_null, slot1_conf_2, slot_null);                     // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 2
-    config = get_config(slot_null, slot_null, slot2_conf_1);
-    config = get_config(slot_null, slot_null, slot2_conf_2);
+    // config = get_config(slot_null, slot_null, slot2_conf_1);
+    // config = get_config(slot_null, slot_null, slot2_conf_2);                     // OTTIMA
 
-    // Ottima Simulazione Finita
-    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+    /* 
+    * =================
+    * SIMULAZIONE FINITA
+    * =================
+    */
+
+    // Scenario 1: prima non funzionante, resto non ottime
+    // config = get_config(slot0_conf_1, slot1_conf_1, slot2_conf_1);
+
+    // Scenario 2: tutte non-ottime {over-provisioning}
+    // config = get_config(slot0_conf_2, slot1_conf_1, slot2_conf_1);
+
+    // Scenario 3: under-provisioning
+    // config = get_config(slot0_conf_1, slot1_conf_3, slot2_conf_3);
+
+    // Scenario 4: configurazione ottima
+    // config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+
+    // Scenario 5: configurazione ottima solo per fascia centrale, la più affollata
+    // config = get_config(slot0_conf_5, slot1_conf_2, slot2_conf_1);
+
+    // Scenario 6: ottima, non-ottima, infinita
+    // config = get_config(slot0_conf_5_bis, slot1_conf_1, slot2_conf_3);
+
+    // Scenario 7: non-ottima, infinita, non-ottima con molti server
+    config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
 }

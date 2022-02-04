@@ -1,0 +1,26 @@
+==== Finite Horizon Simulation | sim_time 68400 | #repetitions #128 ====FASCIA #0
+...TEMPERATURE_CTRL: 7
+...TICKET_BUY: 20
+...SEASON_GATE: 2
+...TICKET_GATE: 9
+...GREEN_PASS: 15
+
+FASCIA #1
+...TEMPERATURE_CTRL: 10
+...TICKET_BUY: 30
+...SEASON_GATE: 1
+...TICKET_GATE: 12
+...GREEN_PASS: 14
+
+FASCIA #2
+...TEMPERATURE_CTRL: 15
+...TICKET_BUY: 45
+...SEASON_GATE: 5
+...TICKET_GATE: 18
+...GREEN_PASS: 30
+
+Simulation Progress: |██████████████████████████████████████████████████| 100%
+TOTAL MEAN CONFIGURATION COST: 2038.290263
+
+ // Scenario 7: non-ottima, infinita, non-ottima con molti server
+    config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
