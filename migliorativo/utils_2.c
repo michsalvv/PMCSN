@@ -101,3 +101,38 @@ int insertSorted(sorted_completions *compls, compl completion) {
 
     return (n + 1);
 }
+char *stringFromEnum(enum block_types f) {
+    char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "SEASON_GATE", "TICKET_GATE", "GREEN_PASS"};
+    return strings[f];
+}
+
+void printServerInfo(network_status network, int blockType) {
+    int n = network.num_online_servers[blockType];
+    printf("\n%s\n", stringFromEnum(blockType));
+    for (int i = 0; i < n; i++) {
+        server s = network.server_list[blockType][i];
+        printf("Server %d | jobInQueue %d | status %d | jobInTotal %d\n", s.id, s.jobInQueue, s.status, s.jobInTotal);
+    }
+}
+
+void print_network_status(network_status *network) {
+    printf("\n");
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server s = network->server_list[j][i];
+            if (s.used == NOTUSED) {
+                break;
+            }
+            printf("(%d,%d) | status: {%d,%d} | jobInQueue :%d | jobInTotal: %d | arrivals: %d | completions: %d\n", s.block->type, s.id, s.status, s.online, s.jobInQueue, s.jobInTotal, s.arrivals, s.completions);
+        }
+    }
+}
+
+void print_configuration(network_configuration *config) {
+    for (int slot = 0; slot < 3; slot++) {
+        printf("\nFASCIA #%d\n", slot);
+        for (int block = 0; block < NUM_BLOCKS; block++) {
+            printf("...%s: %d\n", stringFromEnum(block), config->slot_config[slot][block]);
+        }
+    }
+}

@@ -81,6 +81,9 @@ void init_blocks() {
             s.time_online = 0.0;
             s.last_online = 0.0;
             s.jobInQueue = 0;
+            s.jobInTotal = 0;
+            s.completions = 0;
+            s.arrivals = 0;
 
             //TODO AGGIUNTI PER MIGLIORATIVO
             s.head_queue = NULL;
@@ -171,7 +174,7 @@ void set_time_slot() {
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
         slot_switched[1] = true;
-        // update_network();
+        update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         // calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
@@ -179,7 +182,7 @@ void set_time_slot() {
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
-        // update_network();
+        update_network();
     }
 }
 
@@ -226,6 +229,9 @@ void enqueue(server *s, double arrival) {
 
 // Rimuove il job dalla coda del server specificato
 void dequeue(server *s) {
+    if (s->block->type == GREEN_PASS)
+        return;
+
     struct job *j = s->head_service;
 
     if (!j->next)
@@ -253,12 +259,13 @@ server *findShorterServer(struct block b) {
             if (global_network_status.server_list[block_type][j].status == IDLE) {
                 return &global_network_status.server_list[block_type][j];
             }
-            return NULL;
         }
+        return NULL;
     }
 
     for (int i = 0; i < active_servers; i++) {
-        if (global_network_status.server_list[block_type][i].jobInQueue <= shorterTail->jobInQueue) {
+        server s = global_network_status.server_list[block_type][i];
+        if (s.jobInTotal < shorterTail->jobInTotal) {
             shorterTail = &global_network_status.server_list[block_type][i];
         }
     }
@@ -267,19 +274,20 @@ server *findShorterServer(struct block b) {
 
 void process_arrival() {
     blocks[TEMPERATURE_CTRL].total_arrivals++;
-    blocks[TEMPERATURE_CTRL].jobInBlock++;
 
     server *s = findShorterServer(blocks[TEMPERATURE_CTRL]);
+    s->jobInTotal++;
+    s->arrivals++;
 
-    // Se il server trovato non ha nessuno in servizio
+    // Se il server trovato non ha nessuno in servizio, può servire il job appena arrivato
     if (s->status == IDLE) {
         double serviceTime = getService(TEMPERATURE_CTRL, s->stream);
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
-        s->sum.service += serviceTime;
-        s->block->area.service += serviceTime;
-        s->sum.served++;
+        // s->sum.service += serviceTime;
+        // s->block->area.service += serviceTime;
+        // s->sum.served++;
         insertSorted(&global_sorted_completions, c);
         enqueue(s, clock.arrival);  // lo appendo nella linked list di job del blocco TEMP
     } else {
@@ -291,8 +299,10 @@ void process_arrival() {
 
 void process_completion(compl c) {
     int block_type = c.server->block->type;
+
     blocks[block_type].total_completions++;
-    blocks[block_type].jobInBlock--;
+    c.server->completions++;
+    c.server->jobInTotal--;
 
     int destination;
     server *shorterServer;
@@ -305,9 +315,9 @@ void process_completion(compl c) {
         c.server->jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
         c.value = clock.current + service_1;
-        c.server->sum.service += service_1;
-        c.server->sum.served++;
-        c.server->block->area.service += service_1;
+        // c.server->sum.service += service_1;
+        // c.server->sum.served++;
+        // c.server->block->area.service += service_1;
         insertSorted(&global_sorted_completions, c);
 
     } else {
@@ -336,22 +346,22 @@ void process_completion(compl c) {
     }
     if (destination != GREEN_PASS) {
         blocks[destination].total_arrivals++;
-        blocks[destination].jobInBlock++;
 
         shorterServer = findShorterServer(blocks[destination]);
+        shorterServer->arrivals++;
+        shorterServer->jobInTotal++;
         enqueue(shorterServer, c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
         // Se il server trovato non ha nessuno in coda, generiamo un tempo di servizio
-        if (shorterServer->jobInQueue == 0) {
+        if (shorterServer->status == IDLE) {
             compl c2 = {shorterServer, INFINITY};
             double service_2 = getService(destination, shorterServer->stream);
             c2.value = clock.current + service_2;
             insertSorted(&global_sorted_completions, c2);
             shorterServer->status = BUSY;
-            shorterServer->sum.service += service_2;
-            shorterServer->sum.served++;
-            shorterServer->block->area.service += service_2;
-
+            // shorterServer->sum.service += service_2;
+            // shorterServer->sum.served++;
+            // shorterServer->block->area.service += service_2;
             return;
         } else {
             shorterServer->jobInQueue++;
@@ -362,18 +372,18 @@ void process_completion(compl c) {
     // Desination == GREEN_PASS. Se non ci sono serventi liberi il job esce dal sistema (loss system)
     blocks[destination].total_arrivals++;
     shorterServer = findShorterServer(blocks[destination]);
-    if (shorterServer != NULL) {
-        blocks[destination].jobInBlock++;
-        // enqueue(&blocks[destination], c.value);  // Posiziono il job nella coda del blocco destinazione e gli imposto come tempo di arrivo quello di completamento
 
+    if (shorterServer != NULL) {
+        shorterServer->jobInTotal++;
+        shorterServer->arrivals++;
         compl c3 = {shorterServer, INFINITY};
         double service_3 = getService(destination, shorterServer->stream);
         c3.value = clock.current + service_3;
         insertSorted(&global_sorted_completions, c3);
         shorterServer->status = BUSY;
-        shorterServer->sum.service += service_3;
-        shorterServer->sum.served++;
-        shorterServer->block->area.service += service_3;
+        // shorterServer->sum.service += service_3;
+        // shorterServer->sum.served++;
+        // shorterServer->block->area.service += service_3;
         return;
 
     } else {
@@ -385,8 +395,12 @@ void process_completion(compl c) {
 }
 
 void init_config() {
-    int slot_test[] = {3, 5, 7, 8, 6};
-    config = get_config(slot_test, slot_test, slot_test);
+    int slot_null[] = {0, 0, 0, 0, 0};
+    int slot_test_1[] = {7, 20, 2, 8, 11};
+    int slot_test_2[] = {1, 1, 1, 1, 1};
+    int slot_test_3[] = {18, 18, 18, 18, 18};
+    // config = get_config(slot_test_1, slot_null, slot_null);
+    config = get_config(slot_test_2, slot_test_3, slot_test_1);
 }
 
 int main() {
@@ -414,4 +428,24 @@ int main() {
             process_completion(*nextCompletion);
         }
     }
+
+    print_configuration(&config);
+    print_network_status(&global_network_status);
+    printf("Arrivi generati: %d\n", blocks[TEMPERATURE_CTRL].total_arrivals);
+    printf("Escono dal sistema: %d serviti da green pass e %d bypassati\n", blocks[GREEN_PASS].total_completions, blocks[GREEN_PASS].total_bypassed);
+    printf("Dropped :%d\n", dropped);
+
+    int stillInSystem = 0;
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server s = global_network_status.server_list[j][i];
+            if (s.used == NOTUSED) {
+                break;
+            }
+            stillInSystem += s.jobInTotal;
+        }
+    }
+    printf("Job ancora nel sistema :%d\n", stillInSystem);
+    int total = blocks[GREEN_PASS].total_bypassed + blocks[GREEN_PASS].total_completions + dropped + stillInSystem;
+    printf("\nVerifica:\n\t + %d\n\t + %d\n\t + %d\n\t + %d\n\t ========\n\t  %d {arrivi generati: %d}\n", blocks[GREEN_PASS].total_completions, blocks[GREEN_PASS].total_bypassed, dropped, stillInSystem, total, blocks[TEMPERATURE_CTRL].total_arrivals);
 }

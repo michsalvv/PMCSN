@@ -105,6 +105,9 @@ typedef struct server_t {
     double last_online;
 
     int jobInQueue;
+    int jobInTotal;
+    int completions;
+    int arrivals;
     struct job *head_service;
     struct job *tail;
     struct job *head_queue;

@@ -27,3 +27,5 @@ void *append_on_csv(FILE *fpt, int rep, double ts, double p);
 void print_real_cost(network_status *net);
 double calculate_cost(network_status *net);
 void print_configuration(network_configuration *config);
+
+void printServerInfo(network_status network, int blockType);
