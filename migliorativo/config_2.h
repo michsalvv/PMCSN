@@ -89,6 +89,7 @@ struct sum {
 struct job {
     double arrival;
     struct job *next;
+    struct job *prev;
 };
 
 // Servente
@@ -110,7 +111,6 @@ typedef struct server_t {
     int arrivals;
     struct job *head_service;
     struct job *tail;
-    struct job *head_queue;
 } server;
 
 typedef struct {

@@ -11,6 +11,8 @@
 #include "math.h"
 #include "utils_2.h"
 
+void enqueue_balancing(server *s, struct job *j);
+
 network_configuration config;
 struct clock_t clock;
 struct block blocks[NUM_BLOCKS];
@@ -26,7 +28,9 @@ int dropped;
 int bypassed;
 bool slot_switched[3];
 
-double stop_time = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+// double stop_time = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+// double stop_time = TIME_SLOT_1;
+double stop_time = TIME_SLOT_1 + TIME_SLOT_2 + 10000;
 int streamID;
 
 double getArrival(double current) {
@@ -86,7 +90,6 @@ void init_blocks() {
             s.arrivals = 0;
 
             //TODO AGGIUNTI PER MIGLIORATIVO
-            s.head_queue = NULL;
             s.head_service = NULL;
             s.tail = NULL;
 
@@ -126,30 +129,71 @@ void activate_servers(int block) {
         server *s = &global_network_status.server_list[block][i];
         s->online = ONLINE;
         s->used = USED;
-        if (blocks[block].jobInQueue > 0) {
-            if (blocks[block].head_queue->next != NULL) {
-                struct job *tmp = blocks[block].head_queue->next;
-                blocks[block].head_queue = tmp;
-            } else {
-                blocks[block].head_queue = NULL;
-            }
-            double serviceTime = getService(block, s->stream);
-            compl c = {s, INFINITY};
-            s->status = BUSY;
-            c.value = clock.current + serviceTime;
-            blocks[block].jobInQueue--;
-            s->block->area.service += serviceTime;
-            s->sum.service += serviceTime;
-            insertSorted(&global_sorted_completions, c);
-        }
         global_network_status.num_online_servers[block] = config.slot_config[slot][block];
+    }
+}
+
+// void remove_tail(server *source, server *destination) {
+// }
+
+void load_balance(int block) {
+    int slot = global_network_status.time_slot;
+    int total_old = config.slot_config[slot - 1][block];
+    int total_new = config.slot_config[slot][block];
+    int total_job = blocks[block].jobInQueue;
+
+    if (total_job == 0) {  // Non ci sono job da ri-distribuire
+        return;
+    }
+
+    int only_new = total_new - total_old;
+    int jobRemain = total_job / total_new;
+    server last_server;
+
+    int j = 0;
+    int destID = 0;
+    for (int i = 0; i < total_old; i++) {
+        server *source = &global_network_status.server_list[block][i];
+        while (source->jobInQueue > jobRemain) {
+            destID = ((destID++) % (only_new)) + total_old;
+            server *destination = &global_network_status.server_list[block][destID];
+
+            struct job *tmp = source->tail->prev;
+            enqueue_balancing(destination, source->tail);  // Mette la coda nella destinazione
+            source->tail = tmp;
+            if (source->tail->next) {
+                source->tail->next = NULL;
+            }
+
+            destination->jobInTotal++;
+            destination->arrivals++;
+            if (destination->status == IDLE) {
+                double serviceTime = getService(block, destination->stream);
+                compl c = {destination, INFINITY};
+                c.value = clock.current + serviceTime;
+                destination->status = BUSY;
+                insertSorted(&global_sorted_completions, c);
+                blocks[block].jobInQueue--;  // Il primo job che andrà nel server IDLE APPENA ACCESSO non dovrà essere contato più come in coda, è in servizio
+            } else {
+                destination->jobInQueue++;
+                blocks[block].jobInQueue++;
+            }
+            source->jobInQueue--;
+            source->jobInTotal--;
+            source->arrivals--;
+            // printf("s: ");
+            // print_single_server_info(*source);
+            // printf("d: ");
+            // print_single_server_info(*destination);
+        }
     }
 }
 
 void update_network() {
     int actual, new = 0;
     int slot = global_network_status.time_slot;
-
+    printf("==== Stato prima del balancing ====\n");
+    print_network_status(&global_network_status);
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
         new = config.slot_config[slot][j];
@@ -157,12 +201,16 @@ void update_network() {
             deactivate_servers(j);
         } else if (actual < new) {
             activate_servers(j);
+            if (slot != 0)
+                load_balance(j);
         }
     }
+    printf("==== Stato dopo balancing ====\n");
+    print_network_status(&global_network_status);
 }
 
 void set_time_slot() {
-    if (clock.current == START) {
+    if (clock.current == START && !slot_switched[0]) {
         global_network_status.time_slot = 0;
         arrival_rate = LAMBDA_1;
         slot_switched[0] = true;
@@ -176,6 +224,7 @@ void set_time_slot() {
         slot_switched[1] = true;
         update_network();
     }
+    /*
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         // calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
 
@@ -184,6 +233,7 @@ void set_time_slot() {
         slot_switched[2] = true;
         update_network();
     }
+    */
 }
 
 void init_network() {
@@ -215,16 +265,31 @@ void enqueue(server *s, double arrival) {
     j->arrival = arrival;
     j->next = NULL;
 
-    if (s->tail)  // Appendi alla coda se esiste, altrimenti è la testa
-        s->tail->next = j;
-    else
+    // Appendi alla coda se esiste, altrimenti è la testa
+    if (s->tail) {
+        j->prev = s->tail;
+        s->tail->next = j;  // aggiorno la vecchia coda e la faccio puntare a J
+    } else {
+        j->prev = NULL;
         s->head_service = j;
+    }
+
+    s->tail = j;  // J diventa la nuova coda
+}
+
+void enqueue_balancing(server *s, struct job *j) {
+    if (s->tail != NULL) {  // Appendi alla coda se esiste, altrimenti è la testa
+        s->tail->next = j;
+        j->prev = s->tail;
+    } else {
+        s->head_service = j;
+        if (s->head_service->prev)
+            s->head_service->prev = NULL;
+        if (s->head_service->next)
+            s->head_service->next = NULL;
+    }
 
     s->tail = j;
-
-    if (s->head_queue == NULL) {
-        s->head_queue = j;
-    }
 }
 
 // Rimuove il job dalla coda del server specificato
@@ -238,13 +303,6 @@ void dequeue(server *s) {
         s->tail = NULL;
 
     s->head_service = j->next;
-
-    if (s->head_queue != NULL && s->head_queue->next != NULL) {
-        struct job *tmp = s->head_queue->next;
-        s->head_queue = tmp;
-    } else {
-        s->head_queue = NULL;
-    }
     free(j);
 }
 
@@ -265,7 +323,7 @@ server *findShorterServer(struct block b) {
 
     for (int i = 0; i < active_servers; i++) {
         server s = global_network_status.server_list[block_type][i];
-        if (s.jobInTotal < shorterTail->jobInTotal) {
+        if (s.jobInTotal < shorterTail->jobInTotal && !s.need_resched) {
             shorterTail = &global_network_status.server_list[block_type][i];
         }
     }
@@ -293,7 +351,9 @@ void process_arrival() {
     } else {
         enqueue(s, clock.arrival);  // lo appendo nella linked list di job del blocco TEMP
         s->jobInQueue++;
+        blocks[TEMPERATURE_CTRL].jobInQueue++;
     }
+
     clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
 }
 
@@ -311,8 +371,9 @@ void process_completion(compl c) {
     deleteElement(&global_sorted_completions, c);
 
     // Se nel server ci sono job in coda, devo generare il prossimo completamento per tale server.
-    if (c.server->jobInQueue > 0 /*&&!c.server->need_resched */) {
+    if (c.server->jobInQueue > 0) {
         c.server->jobInQueue--;
+        blocks[block_type].jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
         c.value = clock.current + service_1;
         // c.server->sum.service += service_1;
@@ -324,8 +385,8 @@ void process_completion(compl c) {
         c.server->status = IDLE;
     }
 
-    // Se un server è schedulato per la terminazione, non prende un job dalla coda e và OFFLINE
-    if (c.server->need_resched) {
+    // Se un server è schedulato per la terminazione e non ha job in coda va offline
+    if (c.server->need_resched && c.server->jobInQueue == 0) {
         c.server->online = OFFLINE;
         c.server->time_online += (clock.current - c.server->last_online);
         c.server->last_online = clock.current;
@@ -365,6 +426,7 @@ void process_completion(compl c) {
             return;
         } else {
             shorterServer->jobInQueue++;
+            blocks[destination].jobInQueue++;
             return;
         }
     }
@@ -399,8 +461,9 @@ void init_config() {
     int slot_test_1[] = {7, 20, 2, 8, 11};
     int slot_test_2[] = {1, 1, 1, 1, 1};
     int slot_test_3[] = {18, 18, 18, 18, 18};
+    int slot_test_4[] = {3, 3, 3, 3, 3};
     // config = get_config(slot_test_1, slot_null, slot_null);
-    config = get_config(slot_test_2, slot_test_3, slot_test_1);
+    config = get_config(slot_test_2, slot_test_4, slot_test_4);
 }
 
 int main() {
@@ -408,11 +471,20 @@ int main() {
     init_config();
     init_network();
     int n = 1;
-    while (clock.arrival <= stop_time) {
+    int end = 0;
+    while (clock.arrival <= stop_time && !end) {
         set_time_slot();
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        if (clock.current > TIME_SLOT_1 + TIME_SLOT_2) {
+            clock.next = nextCompletion->value;
+            if (clock.next == INFINITY) {
+                end = 1;
+                break;
+            }
+        } else {
+            clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        }
 
         // for (int i = 0; i < NUM_BLOCKS; i++) {
         //     if (blocks[i].jobInBlock > 0) {
@@ -427,6 +499,7 @@ int main() {
         } else {
             process_completion(*nextCompletion);
         }
+        // print_network_status(&global_network_status);
     }
 
     print_configuration(&config);

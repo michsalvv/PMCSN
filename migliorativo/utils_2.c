@@ -106,6 +106,12 @@ char *stringFromEnum(enum block_types f) {
     return strings[f];
 }
 
+char *stringFromStatus(int status) {
+    if (status)
+        return "BUSY";
+    return "IDLE";
+}
+
 void printServerInfo(network_status network, int blockType) {
     int n = network.num_online_servers[blockType];
     printf("\n%s\n", stringFromEnum(blockType));
@@ -113,6 +119,10 @@ void printServerInfo(network_status network, int blockType) {
         server s = network.server_list[blockType][i];
         printf("Server %d | jobInQueue %d | status %d | jobInTotal %d\n", s.id, s.jobInQueue, s.status, s.jobInTotal);
     }
+}
+
+void print_single_server_info(server s) {
+    printf("Block %s | Server %d | jobInQueue %d | jobInTotal %d | %s\n", stringFromEnum(s.block->type), s.id, s.jobInQueue, s.jobInTotal, stringFromStatus(s.status));
 }
 
 void print_network_status(network_status *network) {
@@ -123,7 +133,7 @@ void print_network_status(network_status *network) {
             if (s.used == NOTUSED) {
                 break;
             }
-            printf("(%d,%d) | status: {%d,%d} | jobInQueue :%d | jobInTotal: %d | arrivals: %d | completions: %d\n", s.block->type, s.id, s.status, s.online, s.jobInQueue, s.jobInTotal, s.arrivals, s.completions);
+            printf("(%d,%d) | status: {%d,%d} | jobInQueue :%d | jobInTotal: %d | arrivals: %d | completions: %d | temp_online: %f | need_resched: %d\n", s.block->type, s.id, s.status, s.online, s.jobInQueue, s.jobInTotal, s.arrivals, s.completions, s.time_online, s.need_resched);
         }
     }
 }

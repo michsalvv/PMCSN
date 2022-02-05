@@ -29,3 +29,6 @@ double calculate_cost(network_status *net);
 void print_configuration(network_configuration *config);
 
 void printServerInfo(network_status network, int blockType);
+void print_single_server_info(server s);
+
+void print_job_list(struct job *j);
