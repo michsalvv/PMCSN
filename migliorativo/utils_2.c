@@ -112,6 +112,12 @@ char *stringFromStatus(int status) {
     return "IDLE";
 }
 
+char *stringFromOnline(int online) {
+    if (online)
+        return "ONLINE";
+    return "OFFLINE";
+}
+
 void printServerInfo(network_status network, int blockType) {
     int n = network.num_online_servers[blockType];
     printf("\n%s\n", stringFromEnum(blockType));
@@ -133,7 +139,7 @@ void print_network_status(network_status *network) {
             if (s.used == NOTUSED) {
                 break;
             }
-            printf("(%d,%d) | status: {%d,%d} | jobInQueue :%d | jobInTotal: %d | arrivals: %d | completions: %d | temp_online: %f | need_resched: %d\n", s.block->type, s.id, s.status, s.online, s.jobInQueue, s.jobInTotal, s.arrivals, s.completions, s.time_online, s.need_resched);
+            printf("(%d,%d) | %s | %s | jobInQueue :%d | jobInTotal: %d | arrivals: %d | completions: %d | temp_online: %f | need_resched: %d\n", s.block->type, s.id, stringFromStatus(s.status), stringFromOnline(s.online), s.jobInQueue, s.jobInTotal, s.arrivals, s.completions, s.time_online, s.need_resched);
         }
     }
 }
@@ -145,4 +151,12 @@ void print_configuration(network_configuration *config) {
             printf("...%s: %d\n", stringFromEnum(block), config->slot_config[slot][block]);
         }
     }
+}
+
+int str_compare(char *str1, char *str2) {
+    while (*str1 && *str1 == *str2) {
+        str1++;
+        str2++;
+    }
+    return *str1 - *str2;
 }

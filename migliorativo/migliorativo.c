@@ -11,7 +11,20 @@
 #include "math.h"
 #include "utils_2.h"
 
+// Function Prototypes
+// --------------------------------------------------------
+double getArrival(double current);
+double getService(enum block_types type, int stream);
+void process_arrival();
+void process_completion(compl completion);
+void init_blocks();
+void activate_servers();
+void deactivate_servers();
+void update_network();
+void init_config();
 void enqueue_balancing(server *s, struct job *j);
+void simulate();
+// ---------------------------------------------------------
 
 network_configuration config;
 struct clock_t clock;
@@ -28,10 +41,41 @@ int dropped;
 int bypassed;
 bool slot_switched[3];
 
-// double stop_time = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 // double stop_time = TIME_SLOT_1;
-double stop_time = TIME_SLOT_1 + TIME_SLOT_2 + 10000;
+// double stop_time = TIME_SLOT_1 + TIME_SLOT_2;
 int streamID;
+int num_slot;
+char *simulation_mode;
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("Usage: ./migliorativo <FINITE/INFINITE/TEST> <TIME_SLOT>\n");
+        exit(0);
+    }
+    simulation_mode = argv[1];
+    num_slot = atoi(argv[2]);
+
+    // if (num_slot > 2) {
+    //     printf("Specify time slot between 0 and 2\n");
+    //     exit(0);
+    // }
+    if (str_compare(simulation_mode, "FINITE") == 0) {
+        // PlantSeeds(521312312);
+        // finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
+
+    } else if (str_compare(simulation_mode, "INFINITE") == 0) {
+        // PlantSeeds(521312312);
+        // infinite_horizon_simulation(num_slot);
+
+    } else if (str_compare(simulation_mode, "TEST") == 0) {
+        PlantSeeds(521312312);
+        simulate();
+    } else {
+        printf("Specify mode FINITE/INFINITE or TEST\n");
+        exit(0);
+    }
+}
 
 double getArrival(double current) {
     double arrival = current;
@@ -152,10 +196,11 @@ void load_balance(int block) {
 
     int j = 0;
     int destID = 0;
+    int lastID = 0;
     for (int i = 0; i < total_old; i++) {
         server *source = &global_network_status.server_list[block][i];
         while (source->jobInQueue > jobRemain) {
-            destID = ((destID++) % (only_new)) + total_old;
+            destID = ((lastID) % (only_new)) + total_old;
             server *destination = &global_network_status.server_list[block][destID];
 
             struct job *tmp = source->tail->prev;
@@ -175,12 +220,12 @@ void load_balance(int block) {
                 insertSorted(&global_sorted_completions, c);
                 blocks[block].jobInQueue--;  // Il primo job che andrà nel server IDLE APPENA ACCESSO non dovrà essere contato più come in coda, è in servizio
             } else {
-                destination->jobInQueue++;
-                blocks[block].jobInQueue++;
+                destination->jobInQueue++;  // Non dobbiamo aumentare anche block.jobInQueue perchè quel job è già contato come in coda
             }
             source->jobInQueue--;
             source->jobInTotal--;
             source->arrivals--;
+            lastID++;
             // printf("s: ");
             // print_single_server_info(*source);
             // printf("d: ");
@@ -192,7 +237,7 @@ void load_balance(int block) {
 void update_network() {
     int actual, new = 0;
     int slot = global_network_status.time_slot;
-    printf("==== Stato prima del balancing ====\n");
+    printf("\n==== BEFORE BALANCING SLOT %d ====", slot);
     print_network_status(&global_network_status);
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
@@ -205,7 +250,7 @@ void update_network() {
                 load_balance(j);
         }
     }
-    printf("==== Stato dopo balancing ====\n");
+    printf("\n==== AFTER BALANCING SLOT %d ====", slot);
     print_network_status(&global_network_status);
 }
 
@@ -224,7 +269,7 @@ void set_time_slot() {
         slot_switched[1] = true;
         update_network();
     }
-    /*
+
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         // calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
 
@@ -233,7 +278,6 @@ void set_time_slot() {
         slot_switched[2] = true;
         update_network();
     }
-    */
 }
 
 void init_network() {
@@ -462,29 +506,20 @@ void init_config() {
     int slot_test_2[] = {1, 1, 1, 1, 1};
     int slot_test_3[] = {18, 18, 18, 18, 18};
     int slot_test_4[] = {3, 3, 3, 3, 3};
+    int slot_test_5[] = {10, 10, 10, 10, 10};
     // config = get_config(slot_test_1, slot_null, slot_null);
-    config = get_config(slot_test_2, slot_test_4, slot_test_4);
+    config = get_config(slot_test_4, slot_test_5, slot_test_1);
 }
 
-int main() {
-    PlantSeeds(521312312);
+void simulate() {
     init_config();
     init_network();
     int n = 1;
-    int end = 0;
-    while (clock.arrival <= stop_time && !end) {
+    while (clock.arrival <= stop_simulation) {
         set_time_slot();
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        if (clock.current > TIME_SLOT_1 + TIME_SLOT_2) {
-            clock.next = nextCompletion->value;
-            if (clock.next == INFINITY) {
-                end = 1;
-                break;
-            }
-        } else {
-            clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
-        }
+        clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
 
         // for (int i = 0; i < NUM_BLOCKS; i++) {
         //     if (blocks[i].jobInBlock > 0) {
@@ -499,7 +534,6 @@ int main() {
         } else {
             process_completion(*nextCompletion);
         }
-        // print_network_status(&global_network_status);
     }
 
     print_configuration(&config);
