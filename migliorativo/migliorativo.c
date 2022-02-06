@@ -23,7 +23,16 @@ void deactivate_servers();
 void update_network();
 void init_config();
 void enqueue_balancing(server *s, struct job *j);
-void simulate();
+void run();
+void finite_horizon_simulation(int stop_time, int repetitions);
+void finite_horizon_run(int stop, int repetition);
+void end_servers();
+void clear_environment();
+void write_rt_csv_finite();
+void init_config();
+void print_results_finite();
+void init_network(int rep);
+void set_time_slot(int rep);
 // ---------------------------------------------------------
 
 network_configuration config;
@@ -47,6 +56,13 @@ int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
 int streamID;
 int num_slot;
 char *simulation_mode;
+FILE *finite_csv;
+
+double repetitions_costs[NUM_REPETITIONS];
+double response_times[] = {0, 0, 0};
+double statistics[NUM_REPETITIONS][3];
+double global_means_p[BATCH_K][NUM_BLOCKS];
+double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -61,26 +77,117 @@ int main(int argc, char *argv[]) {
     //     exit(0);
     // }
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        // PlantSeeds(521312312);
-        // finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
+        PlantSeeds(521312312);
+        finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         // PlantSeeds(521312312);
         // infinite_horizon_simulation(num_slot);
 
-    } else if (str_compare(simulation_mode, "TEST") == 0) {
-        PlantSeeds(521312312);
-        simulate();
     } else {
         printf("Specify mode FINITE/INFINITE or TEST\n");
         exit(0);
     }
 }
 
+void finite_horizon_simulation(int stop_time, int repetitions) {
+    printf("\n\n==== Finite Horizon Simulation | sim_time %d | #repetitions #%d ====", stop_simulation, NUM_REPETITIONS);
+    init_config();
+    print_configuration(&config);
+
+    char filename[21];
+    snprintf(filename, 21, "continuos_finite.csv");
+
+    finite_csv = open_csv(filename);
+
+    for (int r = 0; r < repetitions; r++) {
+        finite_horizon_run(stop_time, r);
+        print_percentage(r, repetitions, r - 1);
+    }
+    fclose(finite_csv);
+    write_rt_csv_finite();
+    print_results_finite();
+}
+
+void finite_horizon_run(int stop_time, int repetition) {
+    init_network(0);
+    int n = 1;
+    double realSlotEnd;
+    int settedRealTimeEnd = 0;
+
+    while (clock.arrival <= stop_time) {
+        set_time_slot(repetition);
+        compl *nextCompletion = &global_sorted_completions.sorted_list[0];
+        server *nextCompletionServer = nextCompletion->server;
+        // if (!settedRealTimeEnd) {
+        //     realSlotEnd = clock.current;
+        //     settedRealTimeEnd = 1;
+        // }
+        clock.next = min(nextCompletion->value, clock.arrival);
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
+                server *s = &global_network_status.server_list[i][j];
+
+                if (s->jobInTotal > 0 && s->used) {
+                    s->area.node += (clock.next - clock.current) * s->jobInTotal;
+                    s->area.queue += (clock.next - clock.current) * s->jobInQueue;
+                    s->area.service += (clock.next - clock.current);
+                }
+            }
+        }
+        clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
+
+        if (clock.current == clock.arrival) {
+            process_arrival();
+        } else {
+            process_completion(*nextCompletion);
+        }
+        if (clock.current >= (n - 1) * 300 && clock.current < (n)*300 && completed > 16 && clock.arrival < stop_time) {
+            calculate_statistics_clock(&global_network_status, blocks, clock.current, finite_csv);
+            n++;
+        }
+    }
+    end_servers();
+    repetitions_costs[repetition] = calculate_cost(&global_network_status);
+    calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, repetition);
+    for (int i = 0; i < 3; i++) {
+        statistics[repetition][i] = response_times[i];
+    }
+    clear_environment();
+}
+
+void clear_environment() {
+    global_sorted_completions = empty_sorted;
+    global_network_status = empty_network;
+
+    // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            if (global_network_status.server_list[block_type][j].used) {
+                global_network_status.server_list[block_type][j].area.service = 0;
+                global_network_status.server_list[block_type][j].area.node = 0;
+                global_network_status.server_list[block_type][j].area.queue = 0;
+            }
+        }
+    }
+}
+
+void end_servers() {
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        for (int i = 0; i < MAX_SERVERS; i++) {
+            server *s = &global_network_status.server_list[j][i];
+            if (s->online == ONLINE) {
+                s->time_online += (clock.current - s->last_online);
+                s->last_online = clock.current;
+            }
+        }
+    }
+}
+
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Poisson(1 / arrival_rate);
+    arrival += Exponential(1 / arrival_rate);
     return arrival;
 }
 
@@ -136,6 +243,9 @@ void init_blocks() {
             //TODO AGGIUNTI PER MIGLIORATIVO
             s.head_service = NULL;
             s.tail = NULL;
+            s.area.node = 0;
+            s.area.service = 0;
+            s.area.queue = 0;
 
             global_network_status.server_list[block_type][i] = s;
 
@@ -176,9 +286,6 @@ void activate_servers(int block) {
         global_network_status.num_online_servers[block] = config.slot_config[slot][block];
     }
 }
-
-// void remove_tail(server *source, server *destination) {
-// }
 
 void load_balance(int block) {
     int slot = global_network_status.time_slot;
@@ -237,8 +344,8 @@ void load_balance(int block) {
 void update_network() {
     int actual, new = 0;
     int slot = global_network_status.time_slot;
-    printf("\n==== BEFORE BALANCING SLOT %d ====", slot);
-    print_network_status(&global_network_status);
+    // printf("\n==== BEFORE BALANCING SLOT %d ====", slot);
+    // print_network_status(&global_network_status);
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
         new = config.slot_config[slot][j];
@@ -250,11 +357,11 @@ void update_network() {
                 load_balance(j);
         }
     }
-    printf("\n==== AFTER BALANCING SLOT %d ====", slot);
-    print_network_status(&global_network_status);
+    // printf("\n==== AFTER BALANCING SLOT %d ====", slot);
+    // print_network_status(&global_network_status);
 }
 
-void set_time_slot() {
+void set_time_slot(int rep) {
     if (clock.current == START && !slot_switched[0]) {
         global_network_status.time_slot = 0;
         arrival_rate = LAMBDA_1;
@@ -262,7 +369,7 @@ void set_time_slot() {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        // calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
+        calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, rep);
 
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
@@ -271,7 +378,7 @@ void set_time_slot() {
     }
 
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        // calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times);
+        calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, rep);
 
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
@@ -280,18 +387,18 @@ void set_time_slot() {
     }
 }
 
-void init_network() {
+void init_network(int rep) {
     streamID = 0;
     clock.current = START;
     for (int i = 0; i < 3; i++) {
         slot_switched[i] = false;
-        // response_times[i] = 0;
+        response_times[i] = 0;
     }
 
     init_blocks();
-    // if (str_compare(simulation_mode, "FINITE") == 0) {
-    set_time_slot();
-    // }
+    if (str_compare(simulation_mode, "FINITE") == 0) {
+        set_time_slot(rep);
+    }
 
     completed = 0;
     bypassed = 0;
@@ -387,9 +494,9 @@ void process_arrival() {
         compl c = {s, INFINITY};
         c.value = clock.current + serviceTime;
         s->status = BUSY;  // Setto stato busy
-        // s->sum.service += serviceTime;
-        // s->block->area.service += serviceTime;
-        // s->sum.served++;
+        s->sum.service += serviceTime;
+        // s->area.service += serviceTime;
+        s->sum.served++;
         insertSorted(&global_sorted_completions, c);
         enqueue(s, clock.arrival);  // lo appendo nella linked list di job del blocco TEMP
     } else {
@@ -420,9 +527,9 @@ void process_completion(compl c) {
         blocks[block_type].jobInQueue--;
         double service_1 = getService(block_type, c.server->stream);
         c.value = clock.current + service_1;
-        // c.server->sum.service += service_1;
-        // c.server->sum.served++;
-        // c.server->block->area.service += service_1;
+        c.server->sum.service += service_1;
+        c.server->sum.served++;
+        // c.server->area.service += service_1;
         insertSorted(&global_sorted_completions, c);
 
     } else {
@@ -447,6 +554,7 @@ void process_completion(compl c) {
     destination = getDestination(c.server->block->type);  // Trova la destinazione adatta per il job appena servito
     if (destination == EXIT) {
         dropped++;
+        blocks[TEMPERATURE_CTRL].total_arrivals--;
         return;
     }
     if (destination != GREEN_PASS) {
@@ -464,9 +572,9 @@ void process_completion(compl c) {
             c2.value = clock.current + service_2;
             insertSorted(&global_sorted_completions, c2);
             shorterServer->status = BUSY;
-            // shorterServer->sum.service += service_2;
-            // shorterServer->sum.served++;
-            // shorterServer->block->area.service += service_2;
+            shorterServer->sum.service += service_2;
+            shorterServer->sum.served++;
+            // shorterServer->area.service += service_2;
             return;
         } else {
             shorterServer->jobInQueue++;
@@ -487,9 +595,9 @@ void process_completion(compl c) {
         c3.value = clock.current + service_3;
         insertSorted(&global_sorted_completions, c3);
         shorterServer->status = BUSY;
-        // shorterServer->sum.service += service_3;
-        // shorterServer->sum.served++;
-        // shorterServer->block->area.service += service_3;
+        shorterServer->sum.service += service_3;
+        shorterServer->sum.served++;
+        // shorterServer->area.service += service_3;
         return;
 
     } else {
@@ -502,31 +610,51 @@ void process_completion(compl c) {
 
 void init_config() {
     int slot_null[] = {0, 0, 0, 0, 0};
-    int slot_test_1[] = {7, 20, 2, 8, 11};
+    int slot_test_1[] = {7, 20, 2, 9, 11};
     int slot_test_2[] = {1, 1, 1, 1, 1};
-    int slot_test_3[] = {18, 18, 18, 18, 18};
-    int slot_test_4[] = {3, 3, 3, 3, 3};
-    int slot_test_5[] = {10, 10, 10, 10, 10};
+    int slot_test_3[] = {14, 40, 3, 18, 20};
+    int slot_test_4[] = {6, 18, 2, 10, 10};
+    int slot_test_5[] = {40, 40, 40, 40, 40};
     // config = get_config(slot_test_1, slot_null, slot_null);
-    config = get_config(slot_test_4, slot_test_5, slot_test_1);
+    config = get_config(slot_test_1, slot_test_3, slot_test_4);
 }
 
-void simulate() {
+/*
+void run() {
     init_config();
     init_network();
     int n = 1;
-    while (clock.arrival <= stop_simulation) {
+    double realSlotEnd;
+    int settedRealTimeEnd = 0;
+
+    while (clock.arrival <= stop_simulation + 0) {
         set_time_slot();
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        if (clock.current > stop_simulation) {
+            if (!settedRealTimeEnd) {
+                realSlotEnd = clock.current;
+                settedRealTimeEnd = 1;
+            }
+            clock.next = nextCompletion->value;
+            if (clock.next == INFINITY) {
+                break;
+            }
+        } else {
+            clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        }
 
-        // for (int i = 0; i < NUM_BLOCKS; i++) {
-        //     if (blocks[i].jobInBlock > 0) {
-        //         blocks[i].area.node += (clock.next - clock.current) * blocks[i].jobInBlock;
-        //         blocks[i].area.queue += (clock.next - clock.current) * blocks[i].jobInQueue;
-        //     }
-        // }
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
+                server *s = &global_network_status.server_list[i][j];
+
+                if (s->jobInTotal > 0 && s->used) {
+                    s->area.node += (clock.next - clock.current) * s->jobInTotal;
+                    s->area.queue += (clock.next - clock.current) * s->jobInQueue;
+                    s->area.service += (clock.next - clock.current);
+                }
+            }
+        }
         clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
 
         if (clock.current == clock.arrival) {
@@ -538,7 +666,7 @@ void simulate() {
 
     print_configuration(&config);
     print_network_status(&global_network_status);
-    printf("Arrivi generati: %d\n", blocks[TEMPERATURE_CTRL].total_arrivals);
+    printf("Arrivi generati che non vengono rifiutati: %d\n", blocks[TEMPERATURE_CTRL].total_arrivals);
     printf("Escono dal sistema: %d serviti da green pass e %d bypassati\n", blocks[GREEN_PASS].total_completions, blocks[GREEN_PASS].total_bypassed);
     printf("Dropped :%d\n", dropped);
 
@@ -553,6 +681,42 @@ void simulate() {
         }
     }
     printf("Job ancora nel sistema :%d\n", stillInSystem);
-    int total = blocks[GREEN_PASS].total_bypassed + blocks[GREEN_PASS].total_completions + dropped + stillInSystem;
-    printf("\nVerifica:\n\t + %d\n\t + %d\n\t + %d\n\t + %d\n\t ========\n\t  %d {arrivi generati: %d}\n", blocks[GREEN_PASS].total_completions, blocks[GREEN_PASS].total_bypassed, dropped, stillInSystem, total, blocks[TEMPERATURE_CTRL].total_arrivals);
+    int total = blocks[GREEN_PASS].total_bypassed + blocks[GREEN_PASS].total_completions + stillInSystem;  // Dropped sono già tolti dagli arrivati alla temperatura
+    printf("\nVerifica:\n\t + %d (completamenti) \n\t + %d (bypassed) \n\t + %d (stillInSystem)\n\t ========\n\t  %d {arrivi generati: %d}\n", blocks[GREEN_PASS].total_completions, blocks[GREEN_PASS].total_bypassed, stillInSystem, total, blocks[TEMPERATURE_CTRL].total_arrivals);
+
+    print_servers_statistics(&global_network_status, realSlotEnd, clock.current);
+}
+*/
+
+void write_rt_csv_finite() {
+    FILE *csv;
+    char filename[30];
+    for (int j = 0; j < 3; j++) {
+        snprintf(filename, 30, "rt_finite_slot%d.csv", j);
+        csv = open_csv(filename);
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
+            append_on_csv(csv, i, statistics[i][j], 0);
+        }
+        fclose(csv);
+    }
+}
+
+void print_results_finite() {
+    double total = 0;
+    for (int i = 0; i < NUM_REPETITIONS; i++) {
+        total += repetitions_costs[i];
+    }
+
+    printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
+    for (int s = 0; s < 3; s++) {
+        printf("\nSlot #%d:", s);
+        for (int j = 0; j < NUM_BLOCKS; j++) {
+            printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+            double p = 0;
+            for (int i = 0; i < NUM_REPETITIONS; i++) {
+                p += global_means_p_fin[i][s][j];
+            }
+            printf("%f", p / NUM_REPETITIONS);
+        }
+    }
 }
