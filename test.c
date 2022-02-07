@@ -63,7 +63,6 @@ server *nextCompletion;  // Tiene traccia del server relativo al completamento i
 char *simulation_mode;
 int num_slot;
 
-double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[BATCH_K];
 double repetitions_costs[NUM_REPETITIONS];
@@ -86,6 +85,7 @@ int main(int argc, char *argv[]) {
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
         PlantSeeds(231232132);
+        remove("continuos_finite.csv");
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
@@ -187,14 +187,10 @@ void finite_horizon_run(int stop_time, int repetition) {
             n++;
         }
     }
-    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
+    calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, repetition);
 
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
-
-    for (int i = 0; i < 3; i++) {
-        statistics[repetition][i] = response_times[i];
-    }
 }
 
 // Esegue un singolo batch ad orizzonte infinito
@@ -453,11 +449,11 @@ server *findFreeServer(struct block b) {
 
 // Inizializza tutti i blocchi del sistema
 void init_network(int rep) {
+    global_network_status.configuration = &config;
     streamID = 0;
     clock.current = START;
     for (int i = 0; i < 3; i++) {
         slot_switched[i] = false;
-        response_times[i] = 0;
     }
 
     init_blocks();
@@ -516,7 +512,7 @@ void set_time_slot(int rep) {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
-        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, rep);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, rep);
 
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
@@ -524,7 +520,7 @@ void set_time_slot(int rep) {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
-        calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, rep);
+        calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, rep);
 
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
@@ -618,7 +614,6 @@ void clear_environment() {
     global_sorted_completions = empty_sorted;
     global_network_status = empty_network;
 
-    // TODO vedere se puo andare in init blocks, forse no perchè non vanno resettate le cose tra le batch.
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         blocks[block_type].area.node = 0;
         blocks[block_type].area.service = 0;
@@ -659,7 +654,7 @@ void write_rt_csv_finite() {
     for (int j = 0; j < 3; j++) {
         snprintf(filename, 30, "rt_finite_slot%d.csv", j);
         csv = open_csv(filename);
-        for (int i = 0; i < NUM_REPETITIONS; i++) {
+        for (int i = 0; i < 2; i++) {
             append_on_csv(csv, i, statistics[i][j], 0);
         }
         fclose(csv);
@@ -672,19 +667,7 @@ void print_results_finite() {
     for (int i = 0; i < NUM_REPETITIONS; i++) {
         total += repetitions_costs[i];
     }
-
     printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
-    for (int s = 0; s < 3; s++) {
-        printf("\nSlot #%d:", s);
-        for (int j = 0; j < NUM_BLOCKS; j++) {
-            printf("\nMean Utilization for block %s: ", stringFromEnum(j));
-            double p = 0;
-            for (int i = 0; i < NUM_REPETITIONS; i++) {
-                p += global_means_p_fin[i][s][j];
-            }
-            printf("%f", p / NUM_REPETITIONS);
-        }
-    }
 }
 
 // Stampa il costo e l'utilizzazione media ad orizzonte infinito
@@ -734,7 +717,7 @@ void init_config() {
     int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
     // Slot 1 Connfig 2 [OTTIMO]
-    int slot1_conf_2[] = {14, 39, 3, 17, 20};
+    int slot1_conf_2[] = {14, 40, 3, 17, 20};
 
     // Slot 1 Config 3 [infinita]
     int slot1_conf_3[] = {10, 30, 1, 12, 14};
@@ -743,7 +726,7 @@ void init_config() {
     int slot2_conf_1[] = {10, 30, 3, 12, 16};
 
     // Slot 2 Config 2 [OTTIMO]
-    int slot2_conf_2[] = {6, 18, 2, 8, 10};
+    int slot2_conf_2[] = {7, 20, 2, 8, 10};
 
     // Slot 2 Config 3 [infinita]
     int slot2_conf_3[] = {4, 14, 1, 6, 7};

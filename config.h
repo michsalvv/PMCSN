@@ -108,9 +108,14 @@ typedef struct server_t {
 } server;
 
 typedef struct {
+    int slot_config[3][NUM_BLOCKS];
+} network_configuration;
+
+typedef struct {
     server server_list[NUM_BLOCKS][MAX_SERVERS];
     int num_online_servers[NUM_BLOCKS];
     int time_slot;
+    network_configuration *configuration;
 
 } network_status;
 
@@ -153,8 +158,4 @@ typedef struct {
     compl sorted_list[NUM_BLOCKS * MAX_SERVERS];
     int num_completions;
 } sorted_completions;
-
-typedef struct {
-    int slot_config[3][NUM_BLOCKS];
-} network_configuration;
 // --------------------------------------------------------------------------------------------------
