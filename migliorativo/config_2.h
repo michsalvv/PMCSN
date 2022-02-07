@@ -85,6 +85,12 @@ struct sum {
     long served;     // Numero di job serviti
 };
 
+struct area {
+    double node;    /* time integrated number in the node  */
+    double queue;   /* time integrated number in the queue */
+    double service; /* time integrated number in service */
+};
+
 // Struttura che mantiene un job. Il puntatore *next implementa la Linked List
 struct job {
     double arrival;
@@ -100,7 +106,6 @@ typedef struct server_t {
     int used;    // {0=NOTUSED, 1=USED}     Utilizzata per print_statistic
     int stream;
     struct block *block;
-    struct sum sum;
     bool need_resched;
     double time_online;
     double last_online;
@@ -111,6 +116,8 @@ typedef struct server_t {
     int arrivals;
     struct job *head_service;
     struct job *tail;
+    struct area area;
+    struct sum sum;
 } server;
 
 typedef struct {
@@ -119,12 +126,6 @@ typedef struct {
     int time_slot;
 
 } network_status;
-
-struct area {
-    double node;    /* time integrated number in the node  */
-    double queue;   /* time integrated number in the queue */
-    double service; /* time integrated number in service */
-};
 
 // Blocco
 struct block {

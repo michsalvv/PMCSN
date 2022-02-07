@@ -1,0 +1,60 @@
+==== Finite Horizon Simulation | sim_time 68400 | #repetitions #128 ====
+FASCIA #0
+...TEMPERATURE_CTRL: 7
+...TICKET_BUY: 20
+...SEASON_GATE: 2
+...TICKET_GATE: 8
+...GREEN_PASS: 11
+
+FASCIA #1
+...TEMPERATURE_CTRL: 14
+...TICKET_BUY: 40
+...SEASON_GATE: 3
+...TICKET_GATE: 16
+...GREEN_PASS: 20
+
+FASCIA #2
+...TEMPERATURE_CTRL: 6
+...TICKET_BUY: 18
+...SEASON_GATE: 2
+...TICKET_GATE: 8
+...GREEN_PASS: 10
+Simulation Progress: |██████████████████████████████████████████████████| 100%
+TOTAL MEAN CONFIGURATION COST: 1417.308029
+
+Slot #0:
+Mean Utilization for block TEMPERATURE_CTRL: 0.866496
+Mean Utilization for block TICKET_BUY: 0.869997
+Mean Utilization for block SEASON_GATE: 0.509907
+Mean Utilization for block TICKET_GATE: 0.927280
+Mean Utilization for block GREEN_PASS: 0.816918
+Slot #1:
+Mean Utilization for block TEMPERATURE_CTRL: 0.791474
+Mean Utilization for block TICKET_BUY: 0.800009
+Mean Utilization for block SEASON_GATE: 0.626921
+Mean Utilization for block TICKET_GATE: 0.854228
+Mean Utilization for block GREEN_PASS: 0.802636
+Slot #2:
+Mean Utilization for block TEMPERATURE_CTRL: 0.686320
+Mean Utilization for block TICKET_BUY: 0.694787
+Mean Utilization for block SEASON_GATE: 0.543406
+Mean Utilization for block TICKET_GATE: 0.742325
+Mean Utilization for block GREEN_PASS: 0.699175%    
+
+
+../estimate < rt_finite_slot0.csv
+
+based upon 128 data points and with 95% confidence
+the expected value is in the interval    261.36 +/-   5.51
+
+
+../estimate < rt_finite_slot1.csv
+
+based upon 128 data points and with 95% confidence
+the expected value is in the interval    244.58 +/-   2.23
+
+
+../estimate < rt_finite_slot2.csv
+
+based upon 128 data points and with 95% confidence
+the expected value is in the interval    243.27 +/-   2.00

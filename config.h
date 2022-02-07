@@ -77,6 +77,7 @@ struct clock_t {
     double current;  // Tempo attuale di simulazione
     double next;     // Tempo attuale del prossimo evento, sia arrivo che completamento
     double arrival;  // Tempo attuale del prossimo arrivo
+    double batch_current;
 };
 
 // Struttura che mantiene la somma accumulata
@@ -131,6 +132,7 @@ struct block {
     int batch_queue;
     enum block_types type;
 
+    int batch_arrivals;
     int total_arrivals;
     int total_completions;
     int total_bypassed;  // Utilizzato per il blocco GREEN_PASS

@@ -62,7 +62,6 @@ server *nextCompletion;  // Tiene traccia del server relativo al completamento i
 
 char *simulation_mode;
 int num_slot;
-int stop_simulation;
 
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
@@ -224,7 +223,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
             process_completion(*nextCompletion);
         }
     }
-    calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
+    calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
         int n = 0;
@@ -621,6 +620,7 @@ void clear_environment() {
 
 // Resetta le statistiche tra un batch ed il successivo
 void reset_statistics() {
+    clock.batch_current = clock.current;
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;
@@ -716,16 +716,16 @@ void init_config() {
     int slot0_conf_4_bis[] = {8, 24, 2, 11, 14};
 
     // Slot 0 Config 5 [non-ottima]
-    int slot0_conf_5[] = {7, 20, 2, 9, 15};
+    int slot0_conf_5[] = {9, 21, 3, 12, 15};
 
     // Slot 0 Config 5_bis [OTTIMO]
-    int slot0_conf_5_bis[] = {7, 20, 2, 8, 11};
+    int slot0_conf_5_bis[] = {7, 20, 2, 10, 11};
 
     // Slot 1 Config 1 [non-ottima]
     int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
     // Slot 1 Connfig 2 [OTTIMO]
-    int slot1_conf_2[] = {14, 40, 3, 16, 20};
+    int slot1_conf_2[] = {13, 39, 3, 16, 20};
 
     // Slot 1 Config 3 [infinita]
     int slot1_conf_3[] = {10, 30, 1, 12, 14};
@@ -753,8 +753,8 @@ void init_config() {
     // config = get_config(slot0_conf_2, slot_null, slot_null);
     // config = get_config(slot0_conf_4, slot_null, slot_null);
     // config = get_config(slot0_conf_4_bis, slot_null, slot_null);
-    // config = get_config(slot0_conf_5, slot_null, slot_null);                     // OTTIMA
-    // config = get_config(slot0_conf_5_bis, slot_null, slot_null);
+    // config = get_config(slot0_conf_5, slot_null, slot_null);
+    config = get_config(slot0_conf_5_bis, slot_null, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 1
     // config = get_config(slot_null, slot1_conf_1, slot_null);
@@ -762,7 +762,7 @@ void init_config() {
 
     // Configurazioni Infinite Horizon Slot 2
     // config = get_config(slot_null, slot_null, slot2_conf_1);
-    // config = get_config(slot_null, slot_null, slot2_conf_2);                     // OTTIMA
+    // config = get_config(slot_null, slot_null, slot2_conf_2);  // OTTIMA
 
     /* 
     * =================
@@ -780,7 +780,7 @@ void init_config() {
     // config = get_config(slot0_conf_1, slot1_conf_3, slot2_conf_3);
 
     // Scenario 4: configurazione ottima
-    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+    // config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
 
     // Scenario 5: configurazione ottima solo per fascia centrale, la più affollata
     // config = get_config(slot0_conf_5, slot1_conf_2, slot2_conf_1);
@@ -792,8 +792,8 @@ void init_config() {
     // config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
 
     // Scenario 8: configurazione in cui non rispettiamo il QoS
-    int s1[] = {7, 19, 2, 8, 11};
-    int s2[] = {14, 38, 3, 16, 20};
-    int s3[] = {6, 18, 2, 8, 10};
-    //config = get_config(s1, s2, s3);
+    // int s1[] = {7, 19, 2, 8, 11};
+    // int s2[] = {14, 38, 3, 16, 20};
+    // int s3[] = {6, 18, 2, 8, 10};
+    // config = get_config(s1, s2, s3);
 }
