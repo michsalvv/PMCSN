@@ -287,6 +287,30 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
     rt_arr[network->time_slot] = system_total_wait;
 }
 
+void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
+    double system_total_wait = 0;
+
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        double block_mean_wait = 0;
+        double wait = 0;
+        int servers = 0;
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server *s = &network->server_list[i][j];
+            if (!s->used) {
+                break;
+            } else {
+                if (s->arrivals > 0)
+                    wait += s->area.node / s->arrivals;
+
+                servers++;
+            }
+        }
+        block_mean_wait = wait / servers;
+        system_total_wait += block_mean_wait;
+    }
+    rt_arr[pos] = system_total_wait;
+}
+
 void print_percentage(double part, double total, double oldPart) {
     double percentage = part / total * 100;
     double oldPercentage = oldPart / total * 100;

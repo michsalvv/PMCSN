@@ -26,13 +26,18 @@ void enqueue_balancing(server *s, struct job *j);
 void run();
 void finite_horizon_simulation(int stop_time, int repetitions);
 void finite_horizon_run(int stop, int repetition);
+void infinite_horizon_simulation(int stop);
+void infinite_horizon_batch(int stop, int repetition, int k);
 void end_servers();
 void clear_environment();
 void write_rt_csv_finite();
+void write_rt_csv_infinite();
 void init_config();
 void print_results_finite();
+void print_results_infinite();
 void init_network(int rep);
 void set_time_slot(int rep);
+void reset_statistics();
 // ---------------------------------------------------------
 
 network_configuration config;
@@ -61,8 +66,11 @@ FILE *finite_csv;
 double repetitions_costs[NUM_REPETITIONS];
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
+double infinite_statistics[200000];
 double global_means_p[BATCH_K][NUM_BLOCKS];
 double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
+double global_loss[BATCH_K];
+// ------------------------------------------------------------------------------------------------
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -252,6 +260,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
         }
         global_means_p[k][i] = p / n;
     }
+    reset_statistics();
 }
 
 double getArrival(double current) {
@@ -787,6 +796,58 @@ void print_results_finite() {
                 p += global_means_p_fin[i][s][j];
             }
             printf("%f", p / NUM_REPETITIONS);
+        }
+    }
+}
+
+void write_rt_csv_infinite(int slot) {
+    char filename[30];
+    snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
+    FILE *csv;
+    csv = open_csv(filename);
+    for (int j = 0; j < BATCH_K; j++) {
+        append_on_csv(csv, j, infinite_statistics[j], 0);
+    }
+    fclose(csv);
+}
+
+void print_results_infinite(int slot) {
+    double cost = calculate_cost(&global_network_status);
+    printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
+
+    double l = 0;
+    for (int j = 0; j < NUM_BLOCKS; j++) {
+        printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+        double p = 0;
+        for (int i = 0; i < BATCH_K; i++) {
+            p += global_means_p[i][j];
+            if (j == GREEN_PASS) {
+                l += global_loss[i];
+            }
+        }
+        printf("%f", p / BATCH_K);
+    }
+    printf("\nGREEN PASS LOSS PERC %f: ", l / BATCH_K);
+    printf("\n");
+}
+
+void reset_statistics() {
+    for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
+        blocks[block_type].total_arrivals = 0;
+        blocks[block_type].total_completions = 0;
+        blocks[block_type].total_bypassed = 0;
+        blocks[block_type].area.node = 0;
+        blocks[block_type].area.service = 0;
+        blocks[block_type].area.queue = 0;
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server *s = &global_network_status.server_list[block_type][j];
+            if (s->used) {
+                s->arrivals = 0;
+                s->completions = 0;
+                s->area.node = 0;
+                s->area.queue = 0;
+                s->area.service = 0;
+            }
         }
     }
 }
