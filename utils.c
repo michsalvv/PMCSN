@@ -302,15 +302,12 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
 
         double p = 0;
         int n = 0;
-        for (int j = 0; j < MAX_SERVERS; j++) {
+        for (int j = 0; j < network->num_online_servers[i]; j++) {
             server s = network->server_list[i][j];
-            if (s.used == 1) {
-                p += (s.sum.service / currentClock);
-                n++;
-            }
-
-            p_arr[rep][network->time_slot][i] = p / n;
+            p += (s.sum.service / (currentClock - s.last_online));
+            n++;
         }
+        p_arr[rep][network->time_slot][i] = p / n;
     }
     rt_arr[network->time_slot] = system_total_wait;
 }
@@ -377,13 +374,11 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("\n    server     utilization     avg service\n");
         double p = 0;
         int n = 0;
-        for (int j = 0; j < MAX_SERVERS; j++) {
+        for (int j = 0; j < network->num_online_servers[i]; j++) {
             server s = network->server_list[i][j];
-            if (s.used == 1) {
-                printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
-                p += s.sum.service / currentClock;
-                n++;
-            }
+            printf("%8d %15.5f %15.2f\n", s.id, (s.sum.service / currentClock), (s.sum.service / s.sum.served));
+            p += s.sum.service / currentClock;
+            n++;
         }
         printf("\nSlot #%d: Mean Utilization .................... = %1.6f\n", network->time_slot, p / n);
     }

@@ -86,11 +86,11 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        PlantSeeds(521312312);
+        PlantSeeds(231232132);
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        PlantSeeds(521312312);
+        PlantSeeds(231232132);
         infinite_horizon_simulation(num_slot);
 
     } else {
@@ -106,6 +106,8 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
     print_configuration(&config);
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
+        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+        clear_environment();
         print_percentage(r, repetitions, r - 1);
     }
     write_rt_csv_finite();
@@ -127,6 +129,8 @@ void infinite_horizon_simulation(int slot) {
         infinite_horizon_batch(slot, b, k);
         print_percentage(k, BATCH_K, k - 1);
     }
+    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+
     write_rt_csv_infinite(slot);
     end_servers();
     print_results_infinite(slot);
@@ -184,14 +188,15 @@ void finite_horizon_run(int stop_time, int repetition) {
             n++;
         }
     }
+    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
+
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
-    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
 
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
     }
-    clear_environment();
 }
 
 // Esegue un singolo batch ad orizzonte infinito
@@ -236,6 +241,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
         }
         global_means_p[k][i] = p / n;
     }
+
     reset_statistics();
 }
 
@@ -363,7 +369,7 @@ void process_completion(compl c) {
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
-    arrival += Poisson(1 / arrival_rate);
+    arrival += Exponential(1 / arrival_rate);
     return arrival;
 }
 
@@ -510,6 +516,7 @@ void set_time_slot(int rep) {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
+        print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
         calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, rep);
 
         global_network_status.time_slot = 2;
@@ -544,6 +551,7 @@ void activate_servers(int block) {
     for (int i = start; i < config.slot_config[slot][block]; i++) {
         server *s = &global_network_status.server_list[block][i];
         s->online = ONLINE;
+        s->last_online = clock.current;
         s->used = USED;
         if (blocks[block].jobInQueue > 0) {
             if (blocks[block].head_queue->next != NULL) {
@@ -772,7 +780,7 @@ void init_config() {
     // config = get_config(slot0_conf_1, slot1_conf_3, slot2_conf_3);
 
     // Scenario 4: configurazione ottima
-    //config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
 
     // Scenario 5: configurazione ottima solo per fascia centrale, la più affollata
     // config = get_config(slot0_conf_5, slot1_conf_2, slot2_conf_1);
@@ -787,5 +795,5 @@ void init_config() {
     int s1[] = {7, 19, 2, 8, 11};
     int s2[] = {14, 38, 3, 16, 20};
     int s3[] = {6, 18, 2, 8, 10};
-    config = get_config(s1, s2, s3);
+    //config = get_config(s1, s2, s3);
 }
