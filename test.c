@@ -763,17 +763,17 @@ void init_config() {
     // config = get_config(slot0_conf_4, slot_null, slot_null);
     // config = get_config(slot0_conf_4_bis, slot_null, slot_null);
     // config = get_config(slot0_conf_5, slot_null, slot_null);
-    //config = get_config(slot0_conf_5_bis, slot_null, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 1
     // config = get_config(slot_null, slot1_conf_1, slot_null);
-    //config = get_config(slot_null, slot1_conf_2, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 2
     // config = get_config(slot_null, slot_null, slot2_conf_1);
-    config = get_config(slot_null, slot_null, slot2_conf_2);  // OTTIMA
 
-    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);  // OTTIMA
+    int slot0_ottima[] = {8, 21, 2, 9, 11};
+    int slot1_ottima[] = {14, 41, 3, 17, 20};
+    int slot2_ottima[] = {8, 18, 2, 9, 10};
+    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
 
     /* 
     * =================
