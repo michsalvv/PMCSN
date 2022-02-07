@@ -254,34 +254,27 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
     FILE *csv;
     csv = open_csv_appendMode(filename);
 
-    double system_total_wait = 0;
-    for (int i = 0; i < NUM_BLOCKS; i++) {
-        int m = network->num_online_servers[i];
-        int arr = blocks[i].total_arrivals;
-        int r_arr = arr - blocks[i].total_bypassed;
-        int jq = blocks[i].jobInQueue;
-        int inter = currentClock / blocks[i].total_arrivals;
-
-        double a_rate = blocks[i].total_arrivals / currentClock;
-        double ra_rate = r_arr / currentClock;
-        double s_rate = r_arr / blocks[i].area.service;
-
-        double wait = blocks[i].area.node / r_arr;
-        double delay = blocks[i].area.queue / r_arr;
-        double service = blocks[i].area.service / r_arr;
-        double utilization = ra_rate / (m * s_rate);
-
-        system_total_wait += wait;
-    }
-    append_on_csv_v2(csv, system_total_wait, currentClock);
-    fclose(csv);
-}
-
-// Calcola le statistiche specificate
-void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep) {
     double visit_rt = 0;
+    int time_slot = network->time_slot;
+    double m = 0.0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
-        int m = network->num_online_servers[i];
+        if (time_slot == 0) {
+            m = network->num_online_servers[i];
+        }
+
+        else if (time_slot == 1) {
+            double s1 = network->configuration->slot_config[0][i];
+            double s2 = network->num_online_servers[i];
+            m = (3.0 * s1 + 11.0 * s2) / 14.0;
+        }
+
+        else if (time_slot == 2) {
+            double s1 = network->configuration->slot_config[0][i];
+            double s2 = network->configuration->slot_config[1][i];
+            double s3 = network->num_online_servers[i];
+            m = (3.0 * s1 + 11.0 * s2 + 5.0 * s3) / 19.0;
+        }
+
         int arr = blocks[i].total_arrivals;
         int r_arr = arr - blocks[i].total_bypassed;
         int jq = blocks[i].jobInQueue;
@@ -294,31 +287,82 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
         double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
         double lambda_i = 1 / inter;
         double mu = 1 / service;
-        double throughput = min(network->num_online_servers[i] * mu, lambda_i);
+        double throughput = min(m * mu, lambda_i);
         if (i == GREEN_PASS) {
             throughput = lambda_i;
         }
         double visit = throughput / external_arrival_rate;
-        /*
-        printf("\n\nBlock %d\n", i);
+
+        printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
         printf("external rate: %f\n", external_arrival_rate);
         printf("lambda_%d %f\n", i, lambda_i);
         printf("mu %f\n", mu);
         printf("throughput %f\n", throughput);
         printf("visit: %f\n", throughput / external_arrival_rate);
-*/
+        printf("wait: %f\n", wait);
+
+        visit_rt += wait * visit;
+    }
+    append_on_csv_v2(csv, visit_rt, currentClock);
+    fclose(csv);
+}
+
+// Calcola le statistiche specificate
+void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[NUM_REPETITIONS][3], int rep) {
+    double visit_rt = 0;
+    int time_slot = network->time_slot;
+    double m = 0.0;
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        if (time_slot == 0) {
+            m = network->num_online_servers[i];
+        }
+
+        else if (time_slot == 1) {
+            double s1 = network->configuration->slot_config[0][i];
+            double s2 = network->num_online_servers[i];
+            m = (3.0 * s1 + 11.0 * s2) / 14.0;
+        }
+
+        else if (time_slot == 2) {
+            double s1 = network->configuration->slot_config[0][i];
+            double s2 = network->configuration->slot_config[1][i];
+            double s3 = network->num_online_servers[i];
+            m = (3.0 * s1 + 11.0 * s2 + 5.0 * s3) / 19.0;
+        }
+
+        int arr = blocks[i].total_arrivals;
+        int r_arr = arr - blocks[i].total_bypassed;
+        int jq = blocks[i].jobInQueue;
+        double inter = currentClock / blocks[i].total_arrivals;
+
+        double wait = blocks[i].area.node / arr;
+        double delay = blocks[i].area.queue / r_arr;
+        double service = blocks[i].area.service / r_arr;
+
+        double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
+        double lambda_i = 1 / inter;
+        double mu = 1 / service;
+        double throughput = min(m * mu, lambda_i);
+        if (i == GREEN_PASS) {
+            throughput = lambda_i;
+        }
+        double visit = throughput / external_arrival_rate;
+
+        printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
+        printf("external rate: %f\n", external_arrival_rate);
+        printf("lambda_%d %f\n", i, lambda_i);
+        printf("mu %f\n", mu);
+        printf("throughput %f\n", throughput);
+        printf("visit: %f\n", throughput / external_arrival_rate);
+        printf("wait: %f\n", wait);
+
         visit_rt += wait * visit;
 
-        double p = 0;
-        int n = 0;
-        for (int j = 0; j < network->num_online_servers[i]; j++) {
-            server s = network->server_list[i][j];
-            p += (s.sum.service / (currentClock - s.last_online));
-            n++;
-        }
-        p_arr[rep][network->time_slot][i] = p / n;
+        double utilization = lambda_i / (m * mu);
+        printf("utilization: %f\n", utilization);
     }
-    rt_arr[network->time_slot] = visit_rt;
+    printf("slot #%d response time: %f\n", time_slot, visit_rt);
+    rt_arr[rep][time_slot] = visit_rt;
 }
 
 // Calcola le statistiche specificate
@@ -456,7 +500,7 @@ void print_percentage(double part, double total, double oldPart) {
 // Apre un file csv e ritorna il puntatore a quel file
 FILE *open_csv(char *filename) {
     FILE *fpt;
-    fpt = fopen(filename, "w");
+    fpt = fopen(filename, "w+");
     return fpt;
 }
 

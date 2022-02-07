@@ -308,7 +308,7 @@ void print_percentage(double part, double total, double oldPart) {
 
 FILE *open_csv(char *filename) {
     FILE *fpt;
-    fpt = fopen(filename, "w");
+    fpt = fopen(filename, "w+");
     return fpt;
 }
 
