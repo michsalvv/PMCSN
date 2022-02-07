@@ -62,7 +62,7 @@ int getDestination(enum block_types from) {
         case TICKET_GATE:
             return GREEN_PASS;
         case GREEN_PASS:
-            return EXIT;
+            return TRAIN;
             break;
     }
 }
@@ -279,26 +279,35 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
 
 // Calcola le statistiche specificate
 void calculate_statistics_fin(network_status *network, struct block blocks[], double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep) {
-    char type[20];
-    double system_total_wait = 0;
+    double visit_rt = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
-        strcpy(type, stringFromEnum(blocks[i].type));
-
         int m = network->num_online_servers[i];
         int arr = blocks[i].total_arrivals;
         int r_arr = arr - blocks[i].total_bypassed;
         int jq = blocks[i].jobInQueue;
-        int inter = currentClock / blocks[i].total_arrivals;
+        double inter = currentClock / blocks[i].total_arrivals;
 
-        double a_rate = blocks[i].total_arrivals / currentClock;
-        double ra_rate = r_arr / currentClock;
-        double s_rate = r_arr / blocks[i].area.service;
-
-        double wait = blocks[i].area.node / r_arr;
+        double wait = blocks[i].area.node / arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
-        double utilization = ra_rate / (m * s_rate);
-        system_total_wait += wait;
+
+        double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
+        double lambda_i = 1 / inter;
+        double mu = 1 / service;
+        double throughput = min(network->num_online_servers[i] * mu, lambda_i);
+        if (i == GREEN_PASS) {
+            throughput = lambda_i;
+        }
+        double visit = throughput / external_arrival_rate;
+        /*
+        printf("\n\nBlock %d\n", i);
+        printf("external rate: %f\n", external_arrival_rate);
+        printf("lambda_%d %f\n", i, lambda_i);
+        printf("mu %f\n", mu);
+        printf("throughput %f\n", throughput);
+        printf("visit: %f\n", throughput / external_arrival_rate);
+*/
+        visit_rt += wait * visit;
 
         double p = 0;
         int n = 0;
@@ -309,35 +318,43 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
         }
         p_arr[rep][network->time_slot][i] = p / n;
     }
-    rt_arr[network->time_slot] = system_total_wait;
+    rt_arr[network->time_slot] = visit_rt;
 }
 
 // Calcola le statistiche specificate
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
-    char type[20];
-    double system_total_wait = 0;
+    double visit_rt = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
-        strcpy(type, stringFromEnum(blocks[i].type));
-
         int m = network->num_online_servers[i];
         int arr = blocks[i].total_arrivals;
         int r_arr = arr - blocks[i].total_bypassed;
         int jq = blocks[i].jobInQueue;
-        double inter = currentClock / blocks[i].total_arrivals;
+        double inter = currentClock / arr;
 
         double wait = blocks[i].area.node / arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
-        double lambda = 1 / inter;
-        double mu = 1 / (service);
-        printf("Block %d\n", i);
-        printf("lambda %f\n", lambda);
-        printf("service %f\n", mu);
-        printf("visit: %f\n", (1 / inter) / (1 / (network->num_online_servers[i] * mu)));
 
-        system_total_wait += wait;
+        double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
+        double lambda_i = 1 / inter;
+        double mu = 1 / service;
+        double throughput = min(network->num_online_servers[i] * mu, lambda_i);
+
+        if (i == GREEN_PASS) {
+            throughput = lambda_i;
+        }
+        double visit = throughput / external_arrival_rate;
+        /*
+        printf("\n\nBlock %d\n", i);
+        printf("external rate: %f\n", external_arrival_rate);
+        printf("lambda_%d %f\n", i, lambda_i);
+        printf("mu %f\n", mu);
+        printf("throughput %f\n", throughput);
+        printf("visit: %f\n", visit);
+        */
+        visit_rt += visit * wait;
     }
-    rt_arr[pos] = system_total_wait;
+    rt_arr[pos] = visit_rt;
 }
 
 // Stampa a schermo le statistiche calcolate
@@ -353,7 +370,7 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         int jq = blocks[i].jobInQueue;
         double inter = currentClock / blocks[i].total_arrivals;
 
-        double wait = blocks[i].area.node / r_arr;
+        double wait = blocks[i].area.node / arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
 

@@ -66,7 +66,8 @@ enum block_types {
     SEASON_GATE,
     TICKET_GATE,
     GREEN_PASS,
-    EXIT
+    EXIT,
+    TRAIN
 };
 
 // Data Structures
@@ -136,6 +137,7 @@ struct block {
     int total_arrivals;
     int total_completions;
     int total_bypassed;  // Utilizzato per il blocco GREEN_PASS
+    int total_dropped;   // Utilizzato per il blocco TEMPERATURE_CTRL
     double service_rate;
     struct area area;
 };
