@@ -81,8 +81,8 @@ int main(int argc, char *argv[]) {
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        // PlantSeeds(521312312);
-        // infinite_horizon_simulation(num_slot);
+        PlantSeeds(521312312);
+        infinite_horizon_simulation(num_slot);
 
     } else {
         printf("Specify mode FINITE/INFINITE or TEST\n");
@@ -102,6 +102,9 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
 
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
+        print_servers_statistics(&global_network_status, clock.current, clock.current);
+        clear_environment();
+
         print_percentage(r, repetitions, r - 1);
     }
     fclose(finite_csv);
@@ -153,7 +156,7 @@ void finite_horizon_run(int stop_time, int repetition) {
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
     }
-    clear_environment();
+    // clear_environment();
 }
 
 void clear_environment() {
@@ -181,6 +184,73 @@ void end_servers() {
                 s->last_online = clock.current;
             }
         }
+    }
+}
+
+void infinite_horizon_simulation(int slot) {
+    printf("\n\n==== Infinite Horizon Simulation for slot %d | #batch %d====", slot, BATCH_K);
+    init_config();
+    print_configuration(&config);
+    arrival_rate = lambdas[slot];
+    int b = BATCH_B;
+    clear_environment();
+    init_network(0);
+    global_network_status.time_slot = slot;
+    update_network();
+    for (int k = 0; k < BATCH_K; k++) {
+        infinite_horizon_batch(slot, b, k);
+        print_percentage(k, BATCH_K, k - 1);
+    }
+    write_rt_csv_infinite(slot);
+    end_servers();
+    print_results_infinite(slot);
+}
+
+void infinite_horizon_batch(int slot, int b, int k) {
+    int n = 0;
+    global_network_status.time_slot = slot;
+    double old;
+
+    while (n < b) {
+        compl *nextCompletion = &global_sorted_completions.sorted_list[0];
+        server *nextCompletionServer = nextCompletion->server;
+        clock.next = min(nextCompletion->value, clock.arrival);
+        for (int i = 0; i < NUM_BLOCKS; i++) {
+            for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
+                server *s = &global_network_status.server_list[i][j];
+
+                if (s->jobInTotal > 0 && s->used) {
+                    s->area.node += (clock.next - clock.current) * s->jobInTotal;
+                    s->area.queue += (clock.next - clock.current) * s->jobInQueue;
+                    s->area.service += (clock.next - clock.current);
+                }
+            }
+        }
+        clock.current = clock.next;  // Avanzamento del clock al valore del prossimo evento
+
+        if (clock.current == clock.arrival) {
+            process_arrival();
+            n++;
+        } else {
+            process_completion(*nextCompletion);
+        }
+    }
+    calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        double p = 0;
+        int n = 0;
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server s = global_network_status.server_list[i][j];
+            if (s.used == 1) {
+                p += (s.sum.service / clock.current);
+                n++;
+            }
+        }
+        if (i == GREEN_PASS) {
+            double loss_perc = (float)blocks[i].total_bypassed / (float)blocks[i].total_arrivals;
+            global_loss[k] = loss_perc;
+        }
+        global_means_p[k][i] = p / n;
     }
 }
 

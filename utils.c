@@ -326,11 +326,17 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
         int arr = blocks[i].total_arrivals;
         int r_arr = arr - blocks[i].total_bypassed;
         int jq = blocks[i].jobInQueue;
-        int inter = currentClock / blocks[i].total_arrivals;
+        double inter = currentClock / blocks[i].total_arrivals;
 
         double wait = blocks[i].area.node / arr;
         double delay = blocks[i].area.queue / r_arr;
         double service = blocks[i].area.service / r_arr;
+        double lambda = 1 / inter;
+        double mu = 1 / (service);
+        printf("Block %d\n", i);
+        printf("lambda %f\n", lambda);
+        printf("service %f\n", mu);
+        printf("visit: %f\n", (1 / inter) / (1 / (network->num_online_servers[i] * mu)));
 
         system_total_wait += wait;
     }
