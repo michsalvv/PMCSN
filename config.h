@@ -29,7 +29,7 @@
 #define TIME_SLOT_3 18000
 
 // Services Time
-#define SERV_TEMPERATURE_CTRL 15
+#define SERV_TEMPERATURE_CTRL 15  //u = 0.06666667
 #define SERV_TICKET_BUY 90
 #define SERV_SEASON_GATE 10
 #define SERV_TICKET_GATE 25
@@ -66,7 +66,8 @@ enum block_types {
     SEASON_GATE,
     TICKET_GATE,
     GREEN_PASS,
-    EXIT
+    EXIT,
+    TRAIN
 };
 
 // Data Structures
@@ -136,6 +137,7 @@ struct block {
     int total_arrivals;
     int total_completions;
     int total_bypassed;  // Utilizzato per il blocco GREEN_PASS
+    int total_dropped;   // Utilizzato per il blocco TEMPERATURE_CTRL
     double service_rate;
     struct area area;
 };

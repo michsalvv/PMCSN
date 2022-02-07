@@ -28,6 +28,7 @@ void activate_servers();
 void deactivate_servers();
 void update_network();
 void finite_horizon_simulation(int stop_time, int repetitions);
+void infinite_horizon_simulation(int num_slot);
 void finite_horizon_run(int stop, int repetition);
 void infinite_horizon_batch(int slot, int b, int k);
 void end_servers();
@@ -37,7 +38,6 @@ void write_rt_csv_infinite(int slot);
 void init_config();
 void find_batch_b(int slot);
 void reset_statistics();
-void infinite_horizon_simulation(int num_slot);
 void print_results_finite();
 void print_results_infinite(int slot);
 // ------------------------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ int num_slot;
 
 double response_times[] = {0, 0, 0};
 double statistics[NUM_REPETITIONS][3];
-double infinite_statistics[200000];
+double infinite_statistics[BATCH_K];
 double repetitions_costs[NUM_REPETITIONS];
 double global_means_p[BATCH_K][NUM_BLOCKS];
 double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
     if (str_compare(simulation_mode, "FINITE") == 0) {
-        PlantSeeds(521312312);
+        PlantSeeds(231232132);
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
@@ -105,7 +105,8 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
     print_configuration(&config);
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
-        // print_percentage(r, repetitions, r - 1);
+        clear_environment();
+        print_percentage(r, repetitions, r - 1);
     }
     write_rt_csv_finite();
     print_results_finite();
@@ -124,8 +125,11 @@ void infinite_horizon_simulation(int slot) {
     update_network();
     for (int k = 0; k < BATCH_K; k++) {
         infinite_horizon_batch(slot, b, k);
+        reset_statistics();
         print_percentage(k, BATCH_K, k - 1);
     }
+    // print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+
     write_rt_csv_infinite(slot);
     end_servers();
     print_results_infinite(slot);
@@ -183,25 +187,33 @@ void finite_horizon_run(int stop_time, int repetition) {
             n++;
         }
     }
+    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
+
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
-    calculate_statistics_fin(&global_network_status, blocks, clock.current, response_times, global_means_p_fin, repetition);
 
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
     }
-    clear_environment();
 }
 
 // Esegue un singolo batch ad orizzonte infinito
 void infinite_horizon_batch(int slot, int b, int k) {
     int n = 0;
+    int q = 0;
     global_network_status.time_slot = slot;
     double old;
-    while (n < b) {
+    while (n < b || q < b) {
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        if (n >= b) {
+            clock.next = nextCompletion->value;  // Ottengo il prossimo evento
+            if (clock.next == INFINITY) {
+                break;
+            }
+        } else {
+            clock.next = min(nextCompletion->value, clock.arrival);  // Ottengo il prossimo evento
+        }
 
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (blocks[i].jobInBlock > 0) {
@@ -216,9 +228,11 @@ void infinite_horizon_batch(int slot, int b, int k) {
 
         } else {
             process_completion(*nextCompletion);
+            q++;
         }
     }
     calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
+
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
         int n = 0;
@@ -235,7 +249,6 @@ void infinite_horizon_batch(int slot, int b, int k) {
         }
         global_means_p[k][i] = p / n;
     }
-    reset_statistics();
 }
 
 // Processa un arrivo dall'esterno verso il sistema
@@ -306,6 +319,7 @@ void process_completion(compl c) {
     // Gestione blocco destinazione
     destination = getDestination(c.server->block->type);  // Trova la destinazione adatta per il job appena servito
     if (destination == EXIT) {
+        blocks[block_type].total_dropped++;
         dropped++;
         return;
     }
@@ -363,7 +377,6 @@ double getArrival(double current) {
     double arrival = current;
     SelectStream(254);
     arrival += Exponential(1 / arrival_rate);
-    // arrival += Poisson(1 / arrival_rate);
     return arrival;
 }
 
@@ -468,6 +481,7 @@ void init_blocks() {
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;
         blocks[block_type].total_bypassed = 0;
+        blocks[block_type].total_dropped = 0;
         blocks[block_type].area.node = 0;
         blocks[block_type].area.service = 0;
         blocks[block_type].area.queue = 0;
@@ -544,6 +558,7 @@ void activate_servers(int block) {
     for (int i = start; i < config.slot_config[slot][block]; i++) {
         server *s = &global_network_status.server_list[block][i];
         s->online = ONLINE;
+        s->last_online = clock.current;
         s->used = USED;
         if (blocks[block].jobInQueue > 0) {
             if (blocks[block].head_queue->next != NULL) {
@@ -618,6 +633,7 @@ void reset_statistics() {
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;
         blocks[block_type].total_bypassed = 0;
+        blocks[block_type].total_dropped = 0;
         blocks[block_type].area.node = 0;
         blocks[block_type].area.service = 0;
         blocks[block_type].area.queue = 0;
@@ -712,13 +728,13 @@ void init_config() {
     int slot0_conf_5[] = {9, 21, 3, 12, 15};
 
     // Slot 0 Config 5_bis [OTTIMO]
-    int slot0_conf_5_bis[] = {7, 20, 2, 10, 11};
+    int slot0_conf_5_bis[] = {7, 20, 2, 9, 11};
 
     // Slot 1 Config 1 [non-ottima]
     int slot1_conf_1[] = {18, 42, 5, 22, 25};
 
     // Slot 1 Connfig 2 [OTTIMO]
-    int slot1_conf_2[] = {13, 39, 3, 16, 20};
+    int slot1_conf_2[] = {14, 39, 3, 17, 20};
 
     // Slot 1 Config 3 [infinita]
     int slot1_conf_3[] = {10, 30, 1, 12, 14};
@@ -747,15 +763,17 @@ void init_config() {
     // config = get_config(slot0_conf_4, slot_null, slot_null);
     // config = get_config(slot0_conf_4_bis, slot_null, slot_null);
     // config = get_config(slot0_conf_5, slot_null, slot_null);
-    config = get_config(slot0_conf_5_bis, slot_null, slot_null);  // OTTIMA
+    //config = get_config(slot0_conf_5_bis, slot_null, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 1
     // config = get_config(slot_null, slot1_conf_1, slot_null);
-    // config = get_config(slot_null, slot1_conf_2, slot_null);  // OTTIMA
+    //config = get_config(slot_null, slot1_conf_2, slot_null);  // OTTIMA
 
     // Configurazioni Infinite Horizon Slot 2
     // config = get_config(slot_null, slot_null, slot2_conf_1);
-    // config = get_config(slot_null, slot_null, slot2_conf_2);  // OTTIMA
+    config = get_config(slot_null, slot_null, slot2_conf_2);  // OTTIMA
+
+    config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);  // OTTIMA
 
     /* 
     * =================
