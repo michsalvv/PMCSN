@@ -55,8 +55,8 @@ int dropped;
 int bypassed;
 bool slot_switched[3];
 
-int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
-// double stop_time = TIME_SLOT_1;
+// int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+int stop_simulation = TIME_SLOT_1;
 // double stop_time = TIME_SLOT_1 + TIME_SLOT_2;
 int streamID;
 int num_slot;
@@ -89,9 +89,10 @@ int main(int argc, char *argv[]) {
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
-        PlantSeeds(521312312);
+        PlantSeeds(231232132);
         infinite_horizon_simulation(num_slot);
-
+    } else if (str_compare(simulation_mode, "TEST") == 0) {
+        run();
     } else {
         printf("Specify mode FINITE/INFINITE or TEST\n");
         exit(0);
@@ -130,10 +131,6 @@ void finite_horizon_run(int stop_time, int repetition) {
         set_time_slot(repetition);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        // if (!settedRealTimeEnd) {
-        //     realSlotEnd = clock.current;
-        //     settedRealTimeEnd = 1;
-        // }
         clock.next = min(nextCompletion->value, clock.arrival);
         for (int i = 0; i < NUM_BLOCKS; i++) {
             for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
@@ -164,7 +161,6 @@ void finite_horizon_run(int stop_time, int repetition) {
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
     }
-    // clear_environment();
 }
 
 void clear_environment() {
@@ -216,14 +212,25 @@ void infinite_horizon_simulation(int slot) {
 
 void infinite_horizon_batch(int slot, int b, int k) {
     int n = 0;
+    int q = 0;
     global_network_status.time_slot = slot;
     double old;
 
-    while (n < b) {
+    while (true) {
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
-        clock.next = min(nextCompletion->value, clock.arrival);
+        if (n >= b) {
+            clock.next = nextCompletion->value;  // Ottengo il prossimo evento
+            if (clock.next == INFINITY) {
+                break;
+            }
+        } else {
+            clock.next = min(nextCompletion->value, clock.arrival);
+        }
         for (int i = 0; i < NUM_BLOCKS; i++) {
+            if (i == GREEN_PASS) {
+                blocks[i].area.node += (clock.next - clock.current) * blocks[GREEN_PASS].jobInBlock;
+            }
             for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
                 server *s = &global_network_status.server_list[i][j];
 
@@ -241,9 +248,11 @@ void infinite_horizon_batch(int slot, int b, int k) {
             n++;
         } else {
             process_completion(*nextCompletion);
+            q++;
         }
     }
-    calculate_statistics_inf(&global_network_status, blocks, clock.current, infinite_statistics, k);
+    print_servers_statistics(&global_network_status, 0, (clock.current - clock.batch_current));
+    calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
         int n = 0;
@@ -539,7 +548,8 @@ void dequeue(server *s) {
 server *findShorterServer(struct block b) {
     int block_type = b.type;
     int active_servers = global_network_status.num_online_servers[block_type];
-    server *shorterTail = &global_network_status.server_list[block_type][0];
+    int init_server = Equilikely(0, global_network_status.num_online_servers[block_type] - 1);
+    server *shorterTail = &global_network_status.server_list[block_type][init_server];
 
     if (block_type == GREEN_PASS) {
         // Nel blocco green pass non ci sono code, quindi bisogna trovare soltanto il server idle
@@ -553,8 +563,11 @@ server *findShorterServer(struct block b) {
 
     for (int i = 0; i < active_servers; i++) {
         server s = global_network_status.server_list[block_type][i];
-        if (s.jobInTotal < shorterTail->jobInTotal && !s.need_resched) {
-            shorterTail = &global_network_status.server_list[block_type][i];
+        int a = shorterTail->jobInTotal;
+        if (s.jobInTotal < a) {
+            if (!s.need_resched) {
+                shorterTail = &global_network_status.server_list[block_type][i];
+            }
         }
     }
     return shorterTail;
@@ -593,6 +606,8 @@ void process_completion(compl c) {
     blocks[block_type].total_completions++;
     c.server->completions++;
     c.server->jobInTotal--;
+
+    blocks[block_type].jobInBlock--;
 
     int destination;
     server *shorterServer;
@@ -633,7 +648,8 @@ void process_completion(compl c) {
     destination = getDestination(c.server->block->type);  // Trova la destinazione adatta per il job appena servito
     if (destination == EXIT) {
         dropped++;
-        blocks[TEMPERATURE_CTRL].total_arrivals--;
+        blocks[TEMPERATURE_CTRL].total_bypassed++;
+        // blocks[TEMPERATURE_CTRL].total_arrivals--;
         return;
     }
     if (destination != GREEN_PASS) {
@@ -669,6 +685,7 @@ void process_completion(compl c) {
     if (shorterServer != NULL) {
         shorterServer->jobInTotal++;
         shorterServer->arrivals++;
+        blocks[destination].jobInBlock++;
         compl c3 = {shorterServer, INFINITY};
         double service_3 = getService(destination, shorterServer->stream);
         c3.value = clock.current + service_3;
@@ -676,7 +693,6 @@ void process_completion(compl c) {
         shorterServer->status = BUSY;
         shorterServer->sum.service += service_3;
         shorterServer->sum.served++;
-        // shorterServer->area.service += service_3;
         return;
 
     } else {
@@ -693,21 +709,27 @@ void init_config() {
     int slot_test_2[] = {1, 1, 1, 1, 1};
     int slot_test_3[] = {14, 40, 3, 18, 20};
     int slot_test_4[] = {6, 18, 2, 10, 10};
-    int slot_test_5[] = {40, 40, 40, 40, 40};
+    int slot_test_5[] = {9, 19, 3, 11, 15};
     // config = get_config(slot_test_1, slot_null, slot_null);
-    config = get_config(slot_test_1, slot_test_3, slot_test_4);
+    int slot0_ottima[] = {8, 22, 2, 10, 11};
+    int slot1_ottima[] = {14, 43, 3, 17, 20};
+    int slot2_ottima[] = {8, 18, 2, 9, 10};
+    // int slot0_ottima[] = {8, 21, 2, 9, 11};
+    // int slot1_ottima[] = {14, 41, 3, 17, 20};
+    // int slot2_ottima[] = {8, 18, 2, 9, 10};
+    int slot[] = {50, 50, 50, 50, 50};
+    config = get_config(slot0_ottima, slot0_ottima, slot0_ottima);
 }
 
-/*
 void run() {
     init_config();
-    init_network();
+    init_network(1);
     int n = 1;
     double realSlotEnd;
     int settedRealTimeEnd = 0;
 
     while (clock.arrival <= stop_simulation + 0) {
-        set_time_slot();
+        set_time_slot(1);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         if (clock.current > stop_simulation) {
@@ -765,7 +787,6 @@ void run() {
 
     print_servers_statistics(&global_network_status, realSlotEnd, clock.current);
 }
-*/
 
 void write_rt_csv_finite() {
     FILE *csv;
@@ -832,6 +853,7 @@ void print_results_infinite(int slot) {
 }
 
 void reset_statistics() {
+    clock.batch_current = clock.current;
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
         blocks[block_type].total_arrivals = 0;
         blocks[block_type].total_completions = 0;

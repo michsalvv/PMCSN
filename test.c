@@ -125,8 +125,10 @@ void infinite_horizon_simulation(int slot) {
     update_network();
     for (int k = 0; k < BATCH_K; k++) {
         infinite_horizon_batch(slot, b, k);
+        // print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
+        // printf("clock: %f\n", clock.current);
         reset_statistics();
-        print_percentage(k, BATCH_K, k - 1);
+        // print_percentage(k, BATCH_K, k - 1);
     }
     // print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 
@@ -708,7 +710,7 @@ void init_config() {
     int slot0_conf_4_bis[] = {8, 24, 2, 11, 14};
 
     // Slot 0 Config 5 [non-ottima]
-    int slot0_conf_5[] = {9, 21, 3, 12, 15};
+    int slot0_conf_5[] = {9, 19, 3, 11, 15};
 
     // Slot 0 Config 5_bis [OTTIMO]
     int slot0_conf_5_bis[] = {7, 20, 2, 9, 11};
@@ -720,7 +722,7 @@ void init_config() {
     int slot1_conf_2[] = {14, 40, 3, 17, 20};
 
     // Slot 1 Config 3 [infinita]
-    int slot1_conf_3[] = {10, 30, 1, 12, 14};
+    int slot1_conf_3[] = {10, 30, 2, 12, 14};
 
     // Slot 2 Config 1 [non-ottima]
     int slot2_conf_1[] = {10, 30, 3, 12, 16};
@@ -729,7 +731,7 @@ void init_config() {
     int slot2_conf_2[] = {7, 20, 2, 8, 10};
 
     // Slot 2 Config 3 [infinita]
-    int slot2_conf_3[] = {4, 14, 1, 6, 7};
+    int slot2_conf_3[] = {4, 14, 1, 6, 8};
 
     // Slot 2 Config 4 [non-ottima e spropositata nei costi]
     int slot2_conf_4[] = {15, 45, 5, 18, 30};
@@ -756,7 +758,7 @@ void init_config() {
     int slot0_ottima[] = {8, 21, 2, 9, 11};
     int slot1_ottima[] = {14, 41, 3, 17, 20};
     int slot2_ottima[] = {8, 18, 2, 9, 10};
-    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
+    // config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
 
     /* 
     * =================
@@ -774,16 +776,16 @@ void init_config() {
     // config = get_config(slot0_conf_1, slot1_conf_3, slot2_conf_3);
 
     // Scenario 4: configurazione ottima
-    // config = get_config(slot0_conf_5_bis, slot1_conf_2, slot2_conf_2);
+    // config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
 
     // Scenario 5: configurazione ottima solo per fascia centrale, la più affollata
     // config = get_config(slot0_conf_5, slot1_conf_2, slot2_conf_1);
 
     // Scenario 6: ottima, non-ottima, infinita
-    // config = get_config(slot0_conf_5_bis, slot1_conf_1, slot2_conf_3);
+    // config = get_config(slot0_ottima, slot1_conf_1, slot2_conf_3);
 
     // Scenario 7: non-ottima, infinita, non-ottima con molti server
-    // config = get_config(slot0_conf_5, slot1_conf_3, slot2_conf_4);
+    config = get_config(slot0_conf_2, slot1_conf_3, slot0_conf_2);
 
     // Scenario 8: configurazione in cui non rispettiamo il QoS
     // int s1[] = {7, 19, 2, 8, 11};

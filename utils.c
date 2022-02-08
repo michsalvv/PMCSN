@@ -293,13 +293,13 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
         }
         double visit = throughput / external_arrival_rate;
 
-        printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
-        printf("external rate: %f\n", external_arrival_rate);
-        printf("lambda_%d %f\n", i, lambda_i);
-        printf("mu %f\n", mu);
-        printf("throughput %f\n", throughput);
-        printf("visit: %f\n", throughput / external_arrival_rate);
-        printf("wait: %f\n", wait);
+        // printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
+        // printf("external rate: %f\n", external_arrival_rate);
+        // printf("lambda_%d %f\n", i, lambda_i);
+        // printf("mu %f\n", mu);
+        // printf("throughput %f\n", throughput);
+        // printf("visit: %f\n", throughput / external_arrival_rate);
+        // printf("wait: %f\n", wait);
 
         visit_rt += wait * visit;
     }
@@ -348,20 +348,20 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
         }
         double visit = throughput / external_arrival_rate;
 
-        printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
-        printf("external rate: %f\n", external_arrival_rate);
-        printf("lambda_%d %f\n", i, lambda_i);
-        printf("mu %f\n", mu);
-        printf("throughput %f\n", throughput);
-        printf("visit: %f\n", throughput / external_arrival_rate);
-        printf("wait: %f\n", wait);
+        // printf("\n\nBlock: %d | Slot: %d\n", i, network->time_slot);
+        // printf("external rate: %f\n", external_arrival_rate);
+        // printf("lambda_%d %f\n", i, lambda_i);
+        // printf("mu %f\n", mu);
+        // printf("throughput %f\n", throughput);
+        // printf("visit: %f\n", throughput / external_arrival_rate);
+        // printf("wait: %f\n", wait);
 
         visit_rt += wait * visit;
 
         double utilization = lambda_i / (m * mu);
-        printf("utilization: %f\n", utilization);
+        // printf("utilization: %f\n", utilization);
     }
-    printf("slot #%d response time: %f\n", time_slot, visit_rt);
+    // printf("slot #%d response time: %f\n", time_slot, visit_rt);
     rt_arr[rep][time_slot] = visit_rt;
 }
 

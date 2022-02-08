@@ -182,7 +182,7 @@ void print_servers_statistics(network_status *network, double end_slot, double c
             double wait = s.area.node / arr;
             double delay = s.area.queue / arr;
             double service = s.area.service / arr;
-            double u = min(s.sum.service / end_slot, 1);
+            double u = min(s.area.service / currentClock, 1);
 
             printf("\n======== %s server %d ========\n", stringFromEnum(i), j);
             printf("Arrivals ............................ = %d\n", arr);
@@ -289,26 +289,52 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
 
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
     double system_total_wait = 0;
-
-    for (int i = 0; i < NUM_BLOCKS; i++) {
+    double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
+    double visit_rt = 0;
+    for (int i = 0; i < NUM_BLOCKS - 1; i++) {
         double block_mean_wait = 0;
         double wait = 0;
         int servers = 0;
+        double visit_sum = 0;
+        int arrival_sum = 0;
+        int compl = 0;
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
             if (!s->used) {
                 break;
             } else {
-                if (s->arrivals > 0)
-                    wait += s->area.node / s->arrivals;
+                if (s->arrivals > 0) {
+                    double lambda = (double)s->arrivals / currentClock;
+                    double mu = s->arrivals / s->area.service;
+                    double throughput = min(mu, lambda);
 
-                servers++;
+                    wait = s->area.node / s->arrivals;
+
+                    double visit = throughput / external_arrival_rate;
+                    visit_sum += visit;
+                    arrival_sum += s->arrivals;
+                    compl += s->completions;
+                    visit_rt += visit * wait;
+                }
+                // servers++;
             }
         }
-        block_mean_wait = wait / servers;
-        system_total_wait += block_mean_wait;
+        // printf("\nVisit block %d -> %f", i, visit_sum);
+        // printf("\nArrivals block %d %d", i, arrival_sum);
+        // printf("\nCompletions block %d %d", i, compl );
+        // block_mean_wait = wait / servers;
+        // system_total_wait += block_mean_wait;
     }
-    rt_arr[pos] = system_total_wait;
+
+    double lambda_green = blocks[GREEN_PASS].total_arrivals / currentClock;
+    double visit_green = lambda_green / external_arrival_rate;
+    double wait = blocks[GREEN_PASS].area.node / blocks[GREEN_PASS].total_arrivals;
+    visit_rt += visit_green * wait;
+    // printf("\nVisit block 4 -> %f", visit_green);
+    // printf("\nArrivals block 4 %d", blocks[GREEN_PASS].total_arrivals);
+    // printf("\nCompletions block 4 %d", blocks[GREEN_PASS].total_completions + blocks[GREEN_PASS].total_bypassed);
+    // printf("\nTotal Dropped: %d\n", blocks[TEMPERATURE_CTRL].total_bypassed);
+    rt_arr[pos] = visit_rt;
 }
 
 void print_percentage(double part, double total, double oldPart) {

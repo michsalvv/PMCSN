@@ -77,6 +77,7 @@ struct clock_t {
     double current;  // Tempo attuale di simulazione
     double next;     // Tempo attuale del prossimo evento, sia arrivo che completamento
     double arrival;  // Tempo attuale del prossimo arrivo
+    double batch_current;
 };
 
 // Struttura che mantiene la somma accumulata
