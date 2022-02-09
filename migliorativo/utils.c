@@ -9,7 +9,7 @@
 
 #include "./DES/rng.h"
 #include "./DES/rvgs.h"
-#include "config.h"
+#include "./config.h"
 
 FILE *open_csv(char *filename);
 FILE *open_csv_appendMode(char *filename);
