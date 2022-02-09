@@ -109,13 +109,13 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
 
     finite_csv = open_csv(filename);
 
-    //TODO rimettere le configurazioni
-    for (int r = 0; r < 1; r++) {
+    //TODO rimettere le ripetizioni
+    for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
         if (r == 0 && strcmp(simulation_mode, "FINITE") == 0) {
             print_p_on_csv(&global_network_status, clock.current, 2);
         }
-        print_servers_statistics(&global_network_status, clock.current, clock.current);
+        // print_servers_statistics(&global_network_status, clock.current, clock.current);
         clear_environment();
         print_percentage(r, repetitions, r - 1);
     }
@@ -134,6 +134,7 @@ void finite_horizon_run(int stop_time, int repetition) {
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         clock.next = min(nextCompletion->value, clock.arrival);
+
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (i == GREEN_PASS) {
                 blocks[i].area.node += (clock.next - clock.current) * blocks[GREEN_PASS].jobInBlock;

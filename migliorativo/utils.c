@@ -244,6 +244,12 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
     double visit_green = lambda_green / external_arrival_rate;
     double wait = blocks[GREEN_PASS].area.node / blocks[GREEN_PASS].total_arrivals;
     visit_rt += visit_green * wait;
+    // printf("\nVisit block 4 -> %f", visit_green);
+    // printf("\nArrivals block 4 %d", blocks[GREEN_PASS].total_arrivals);
+    // printf("\nCompletions block 4 %d", blocks[GREEN_PASS].total_completions + blocks[GREEN_PASS].total_bypassed);
+    // printf("\nTotal Dropped: %d\n", blocks[TEMPERATURE_CTRL].total_bypassed);
+    // printf("Visit rt: %f\n", visit_rt);
+
     append_on_csv_v2(csv, visit_rt, currentClock);
 }
 
@@ -317,6 +323,7 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
     double visit_green = lambda_green / external_arrival_rate;
     double wait = green_pass->area.node / green_pass->total_arrivals;
     visit_rt += visit_green * wait;
+    // printf("Visit rt: %f\n", visit_rt);
     rt_arr[network->time_slot] = visit_rt;
 
     double p_green = 0;
@@ -376,11 +383,11 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
 
 void print_p_on_csv(network_status *network, double currentClock, int slot) {
     FILE *csv;
-    char filename[100];
+    char filename[30];
 
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
-        snprintf(filename, 100, "results/finite/u_%d_finite_slot%d.csv", i, slot);
+        snprintf(filename, 30, "u_%d_finite_slot%d.csv", i, slot);
         csv = open_csv(filename);
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
