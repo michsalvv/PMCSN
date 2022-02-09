@@ -366,8 +366,9 @@ void calculate_statistics_fin(network_status *network, struct block blocks[], do
 }
 
 // Calcola le statistiche specificate
-void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
+void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos, double dl_arr[][NUM_BLOCKS]) {
     double visit_rt = 0;
+    double sys_delay = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
         int m = network->num_online_servers[i];
         int arr = blocks[i].total_arrivals;
@@ -397,6 +398,7 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
         printf("visit: %f\n", visit);
         */
         visit_rt += visit * wait;
+        dl_arr[pos][i] += delay;
     }
     rt_arr[pos] = visit_rt;
 }
@@ -450,6 +452,27 @@ void print_statistics(network_status *network, struct block blocks[], double cur
         printf("\nSlot #%d: Mean Utilization .................... = %1.6f\n", network->time_slot, p / n);
     }
     printf("\nSlot #%d: System Total Response Time .......... = %1.6f\n", network->time_slot, system_total_wait);
+}
+
+void print_p_on_csv(network_status *network, double currentClock, int slot) {
+    FILE *csv;
+    char filename[30];
+
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        double p = 0;
+        snprintf(filename, 30, "u_%d_finite_slot%d.csv", i, slot);
+        csv = open_csv(filename);
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server *s = &network->server_list[i][j];
+            if (!s->used) {
+                break;
+            } else {
+                p = (s->sum.service / currentClock);
+                append_on_csv(csv, p, 0);
+            }
+        }
+    }
+    fclose(csv);
 }
 
 // Genera una configurazione di avvio per la simulazione

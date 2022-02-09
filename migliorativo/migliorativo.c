@@ -55,8 +55,8 @@ int dropped;
 int bypassed;
 bool slot_switched[3];
 
-// int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
-int stop_simulation = TIME_SLOT_1;
+int stop_simulation = TIME_SLOT_1 + TIME_SLOT_2 + TIME_SLOT_3;
+// int stop_simulation = TIME_SLOT_1;
 // double stop_time = TIME_SLOT_1 + TIME_SLOT_2;
 int streamID;
 int num_slot;
@@ -98,6 +98,10 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 }
+void print_ploss() {
+    double loss_perc = (float)blocks[GREEN_PASS].total_bypassed / (float)blocks[GREEN_PASS].total_arrivals;
+    printf("P_LOSS: %f\n", loss_perc);
+}
 
 void finite_horizon_simulation(int stop_time, int repetitions) {
     printf("\n\n==== Finite Horizon Simulation | sim_time %d | #repetitions #%d ====", stop_simulation, NUM_REPETITIONS);
@@ -111,11 +115,15 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
 
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
-        print_servers_statistics(&global_network_status, clock.current, clock.current);
+        // print_servers_statistics(&global_network_status, clock.current, clock.current);
+        if (r == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, 2);
+        }
         clear_environment();
 
         print_percentage(r, repetitions, r - 1);
     }
+
     fclose(finite_csv);
     write_rt_csv_finite();
     print_results_finite();
@@ -124,15 +132,23 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
 void finite_horizon_run(int stop_time, int repetition) {
     init_network(0);
     int n = 1;
-    double realSlotEnd;
-    int settedRealTimeEnd = 0;
 
     while (clock.arrival <= stop_time) {
         set_time_slot(repetition);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
+        // if (clock.current > stop_time) {
+        //     clock.next = nextCompletion->value;
+        //     if (clock.next == INFINITY) {
+        //         break;
+        //     }
+        // } else {
         clock.next = min(nextCompletion->value, clock.arrival);
+        // }
         for (int i = 0; i < NUM_BLOCKS; i++) {
+            if (i == GREEN_PASS) {
+                blocks[i].area.node += (clock.next - clock.current) * blocks[GREEN_PASS].jobInBlock;
+            }
             for (int j = 0; j < MAX_SERVERS; j++) {  // Non posso fare il ciclo su num_online_servers altrimenti non aggiorno le statistiche di quelli con need_resched
                 server *s = &global_network_status.server_list[i][j];
 
@@ -158,6 +174,8 @@ void finite_horizon_run(int stop_time, int repetition) {
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
     calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, repetition);
+    // print_ploss();
+
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
     }
@@ -251,7 +269,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
             q++;
         }
     }
-    print_servers_statistics(&global_network_status, 0, (clock.current - clock.batch_current));
+    // print_servers_statistics(&global_network_status, 0, (clock.current - clock.batch_current));
     calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
@@ -421,10 +439,6 @@ void load_balance(int block) {
             source->jobInTotal--;
             source->arrivals--;
             lastID++;
-            // printf("s: ");
-            // print_single_server_info(*source);
-            // printf("d: ");
-            // print_single_server_info(*destination);
         }
     }
 }
@@ -457,8 +471,11 @@ void set_time_slot(int rep) {
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
+        if (rep == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
+        }
         calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, rep);
-
+        // print_ploss();
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
         slot_switched[1] = true;
@@ -467,7 +484,11 @@ void set_time_slot(int rep) {
 
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
         calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, rep);
+        if (rep == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
+        }
 
+        // print_ploss();
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
@@ -561,7 +582,12 @@ server *findShorterServer(struct block b) {
         return NULL;
     }
 
-    for (int i = 0; i < active_servers; i++) {
+    int i = init_server;
+    int n = 0;
+    while (true) {
+        if (n == active_servers)
+            break;
+
         server s = global_network_status.server_list[block_type][i];
         int a = shorterTail->jobInTotal;
         if (s.jobInTotal < a) {
@@ -569,6 +595,8 @@ server *findShorterServer(struct block b) {
                 shorterTail = &global_network_status.server_list[block_type][i];
             }
         }
+        n++;
+        i = (i + 1) % active_servers;
     }
     return shorterTail;
 }
@@ -706,19 +734,25 @@ void process_completion(compl c) {
 void init_config() {
     int slot_null[] = {0, 0, 0, 0, 0};
     int slot_test_1[] = {7, 20, 2, 9, 11};
-    int slot_test_2[] = {1, 1, 1, 1, 1};
+    int slot_test_2[] = {3, 11, 1, 3, 9};
     int slot_test_3[] = {14, 40, 3, 18, 20};
     int slot_test_4[] = {6, 18, 2, 10, 10};
     int slot_test_5[] = {9, 19, 3, 11, 15};
-    // config = get_config(slot_test_1, slot_null, slot_null);
-    int slot0_ottima[] = {8, 22, 2, 10, 11};
-    int slot1_ottima[] = {14, 43, 3, 17, 20};
-    int slot2_ottima[] = {8, 18, 2, 9, 10};
-    // int slot0_ottima[] = {8, 21, 2, 9, 11};
-    // int slot1_ottima[] = {14, 41, 3, 17, 20};
-    // int slot2_ottima[] = {8, 18, 2, 9, 10};
     int slot[] = {50, 50, 50, 50, 50};
-    config = get_config(slot0_ottima, slot0_ottima, slot0_ottima);
+
+    int slot0_non_ottima[] = {12, 25, 4, 15, 20};
+    int slot1_non_ottima[] = {18, 46, 5, 20, 25};
+    int slot2_non_ottima[] = {10, 28, 5, 12, 15};
+
+    int slot0_ottima[] = {8, 22, 2, 10, 11};
+    int slot1_ottima[] = {15, 44, 3, 18, 20};
+    int slot2_ottima[] = {7, 21, 2, 9, 10};
+
+    int slot0_ottima_orig[] = {8, 21, 2, 9, 11};
+    int slot1_ottima_orig[] = {14, 41, 3, 17, 20};
+    int slot2_ottima_orig[] = {8, 18, 2, 9, 10};
+
+    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
 }
 
 void run() {
@@ -794,6 +828,7 @@ void write_rt_csv_finite() {
     for (int j = 0; j < 3; j++) {
         snprintf(filename, 30, "rt_finite_slot%d.csv", j);
         csv = open_csv(filename);
+
         for (int i = 0; i < NUM_REPETITIONS; i++) {
             append_on_csv(csv, i, statistics[i][j], 0);
         }

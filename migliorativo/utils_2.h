@@ -33,3 +33,4 @@ void print_single_server_info(server s);
 
 void print_job_list(struct job *j);
 void print_servers_statistics(network_status *network, double stop, double currentClock);
+void print_p_on_csv(network_status *network, double currentClock, int slot);

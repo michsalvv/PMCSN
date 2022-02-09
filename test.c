@@ -40,6 +40,7 @@ void find_batch_b(int slot);
 void reset_statistics();
 void print_results_finite();
 void print_results_infinite(int slot);
+void print_ploss();
 // ------------------------------------------------------------------------------------------------
 network_configuration config;
 sorted_completions global_sorted_completions;  // Tiene in una lista ordinata tutti i completamenti nella rete così da ottenere il prossimo in O(log(N))
@@ -65,6 +66,7 @@ int num_slot;
 
 double statistics[NUM_REPETITIONS][3];
 double infinite_statistics[BATCH_K];
+double infinite_delay[BATCH_K][NUM_BLOCKS];
 double repetitions_costs[NUM_REPETITIONS];
 double global_means_p[BATCH_K][NUM_BLOCKS];
 double global_means_p_fin[NUM_REPETITIONS][3][NUM_BLOCKS];
@@ -105,6 +107,9 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
     print_configuration(&config);
     for (int r = 0; r < repetitions; r++) {
         finite_horizon_run(stop_time, r);
+        if (r == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, 2);
+        }
         clear_environment();
         print_percentage(r, repetitions, r - 1);
     }
@@ -190,6 +195,7 @@ void finite_horizon_run(int stop_time, int repetition) {
         }
     }
     calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, repetition);
+    // print_ploss();
 
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
@@ -229,7 +235,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
             q++;
         }
     }
-    calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
+    calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k, infinite_delay);
 
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
@@ -516,19 +522,32 @@ void set_time_slot(int rep) {
     if (clock.current >= TIME_SLOT_1 && clock.current < TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[1]) {
         calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, rep);
 
+        if (rep == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
+        }
+
+        // print_ploss();
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
         slot_switched[1] = true;
         update_network();
     }
     if (clock.current >= TIME_SLOT_1 + TIME_SLOT_2 && !slot_switched[2]) {
+        // print_ploss();
         calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, rep);
-
+        if (rep == 0 && strcmp(simulation_mode, "FINITE") == 0) {
+            print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
+        }
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
         update_network();
     }
+}
+
+void print_ploss() {
+    double loss_perc = (float)blocks[GREEN_PASS].total_bypassed / (float)blocks[GREEN_PASS].total_arrivals;
+    printf("P_LOSS: %f\n", loss_perc);
 }
 
 // Aggiorna i serventi attivi al cambio di fascia, attivando o disattivando il numero necessario per ogni blocco
@@ -640,13 +659,33 @@ void reset_statistics() {
 // Scrive i tempi di risposta a tempo infinito su un file csv
 void write_rt_csv_infinite(int slot) {
     char filename[30];
+    char filename_ploss[30];
+
     snprintf(filename, 30, "rt_infinite_slot_%d.csv", slot);
+    snprintf(filename_ploss, 30, "ploss_infinite_slot_%d.csv", slot);
     FILE *csv;
+    FILE *csv_ploss;
     csv = open_csv(filename);
+    csv_ploss = open_csv(filename_ploss);
+
     for (int j = 0; j < BATCH_K; j++) {
         append_on_csv(csv, j, infinite_statistics[j], 0);
+        append_on_csv(csv_ploss, j, global_loss[j], 0);
     }
     fclose(csv);
+    fclose(csv_ploss);
+
+    for (int i = 0; i < NUM_BLOCKS - 1; i++) {
+        char filename_delays[30];
+        snprintf(filename_delays, 30, "dl_%d_infinite_slot_%d.csv", i, slot);
+        FILE *csv_delays;
+        csv_delays = open_csv(filename_delays);
+
+        for (int j = 0; j < BATCH_K; j++) {
+            append_on_csv(csv_delays, j, infinite_delay[j][i], 0);
+        }
+        fclose(csv_delays);
+    }
 }
 
 // Scrive i tempi di risposta a tempo finito su un file csv
@@ -656,7 +695,7 @@ void write_rt_csv_finite() {
     for (int j = 0; j < 3; j++) {
         snprintf(filename, 30, "rt_finite_slot%d.csv", j);
         csv = open_csv(filename);
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < NUM_REPETITIONS; i++) {
             append_on_csv(csv, i, statistics[i][j], 0);
         }
         fclose(csv);
@@ -785,11 +824,20 @@ void init_config() {
     // config = get_config(slot0_ottima, slot1_conf_1, slot2_conf_3);
 
     // Scenario 7: non-ottima, infinita, non-ottima con molti server
-    config = get_config(slot0_conf_2, slot1_conf_3, slot0_conf_2);
+    // config = get_config(slot0_conf_2, slot1_conf_3, slot0_conf_2);
 
-    // Scenario 8: configurazione in cui non rispettiamo il QoS
-    // int s1[] = {7, 19, 2, 8, 11};
-    // int s2[] = {14, 38, 3, 16, 20};
-    // int s3[] = {6, 18, 2, 8, 10};
-    // config = get_config(s1, s2, s3);
+    int s1[] = {9, 22, 3, 11, 10};
+    int s2[] = {14, 42, 4, 20, 20};
+    int s3[] = {9, 20, 3, 12, 10};
+
+    // Configurazioni ottime algoritmo migliorativo, messe qui per confronto utilizzazioni
+    int slot0_ottima_multiqueue[] = {8, 22, 2, 10, 11};
+    int slot1_ottima_multiqueue[] = {14, 43, 3, 17, 20};
+    int slot2_ottima_multiqueue[] = {8, 18, 2, 9, 10};
+    // config = get_config(slot0_ottima_multiqueue, slot1_ottima_multiqueue, slot2_ottima_multiqueue);
+
+    int a[] = {8, 20, 2, 9, 11};
+    int b[] = {18, 42, 5, 22, 25};
+    int c[] = {4, 14, 1, 6, 8};
+    config = get_config(a, b, c);
 }

@@ -207,31 +207,50 @@ void print_servers_statistics(network_status *network, double end_slot, double c
 }
 
 void calculate_statistics_clock(network_status *network, struct block blocks[], double currentClock, FILE *csv) {
-    // char filename[21];
-    // snprintf(filename, 21, "continuos_finite.csv");
-    // FILE *csv;
-    // csv = open_csv_appendMode(filename);
+    double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
+    double visit_rt = 0;
 
-    double system_total_wait = 0;
-    for (int i = 0; i < NUM_BLOCKS; i++) {
+    for (int i = 0; i < NUM_BLOCKS - 1; i++) {
         double block_mean_wait = 0;
         double wait = 0;
-        int servers = 0;
+
+        double visit_sum = 0;
+        int arrival_sum = 0;
+        int compl = 0;
+
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
             if (!s->used) {
                 break;
             } else {
-                if (s->arrivals > 0)
-                    wait += s->area.node / s->arrivals;
-                servers++;
+                if (s->arrivals > 0) {
+                    double lambda = (double)s->arrivals / currentClock;
+                    double mu = s->arrivals / s->area.service;
+                    double throughput = min(mu, lambda);
+
+                    wait = s->area.node / s->arrivals;
+
+                    double visit = throughput / external_arrival_rate;
+                    visit_sum += visit;
+                    arrival_sum += s->arrivals;
+                    compl += s->completions;
+                    visit_rt += visit * wait;
+                }
             }
         }
-        block_mean_wait = wait / servers;
-        system_total_wait += block_mean_wait;
     }
-    append_on_csv_v2(csv, system_total_wait, currentClock);
-    // fclose(csv);
+
+    double lambda_green = blocks[GREEN_PASS].total_arrivals / currentClock;
+    double visit_green = lambda_green / external_arrival_rate;
+    double wait = blocks[GREEN_PASS].area.node / blocks[GREEN_PASS].total_arrivals;
+    visit_rt += visit_green * wait;
+    // printf("\nVisit block 4 -> %f", visit_green);
+    // printf("\nArrivals block 4 %d", blocks[GREEN_PASS].total_arrivals);
+    // printf("\nCompletions block 4 %d", blocks[GREEN_PASS].total_completions + blocks[GREEN_PASS].total_bypassed);
+    // printf("\nTotal Dropped: %d\n", blocks[TEMPERATURE_CTRL].total_bypassed);
+    // printf("Visit rt: %f\n", visit_rt);
+
+    append_on_csv_v2(csv, visit_rt, currentClock);
 }
 
 FILE *open_csv_appendMode(char *filename) {
@@ -261,34 +280,68 @@ double calculate_cost(network_status *net) {
 }
 
 void calculate_statistics_fin(network_status *network, double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep) {
-    double system_total_wait = 0;
-    for (int i = 0; i < NUM_BLOCKS; i++) {
+    double temperature_arrivals = network->server_list[0][0].block->total_arrivals;
+    double external_arrival_rate = 1 / (currentClock / temperature_arrivals);
+    double visit_rt = 0;
+
+    for (int i = 0; i < NUM_BLOCKS - 1; i++) {
         double block_mean_wait = 0;
         double wait = 0;
         int servers = 0;
         double p = 0;
+        double visit_sum = 0;
+        int arrival_sum = 0;
+        int compl = 0;
+
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
             if (!s->used) {
                 break;
             } else {
-                if (s->arrivals > 0)
-                    wait += s->area.node / s->arrivals;
+                if (s->arrivals > 0) {
+                    double lambda = (double)s->arrivals / currentClock;
+                    double mu = s->arrivals / s->area.service;
+                    double throughput = min(mu, lambda);
 
-                p += (s->area.service / currentClock);
-                servers++;
+                    wait = s->area.node / s->arrivals;
+
+                    double visit = throughput / external_arrival_rate;
+                    visit_sum += visit;
+                    arrival_sum += s->arrivals;
+                    compl += s->completions;
+                    visit_rt += visit * wait;
+                    p += (s->area.service / currentClock);
+                    servers++;
+                }
             }
+            p_arr[rep][network->time_slot][i] = p / servers;
         }
-        p_arr[rep][network->time_slot][i] = p / servers;
-        block_mean_wait = wait / servers;
-        system_total_wait += block_mean_wait;
     }
 
-    rt_arr[network->time_slot] = system_total_wait;
+    struct block *green_pass = network->server_list[4][0].block;
+    double lambda_green = green_pass->total_arrivals / currentClock;
+    double visit_green = lambda_green / external_arrival_rate;
+    double wait = green_pass->area.node / green_pass->total_arrivals;
+    visit_rt += visit_green * wait;
+    // printf("Visit rt: %f\n", visit_rt);
+    rt_arr[network->time_slot] = visit_rt;
+
+    double p_green = 0;
+    int servers_green = 0;
+    for (int q = 0; q < MAX_SERVERS; q++) {
+        server *s = &network->server_list[GREEN_PASS][q];
+        if (!s->used) {
+            break;
+        } else {
+            p_green += (s->area.service / currentClock);
+        }
+        servers_green++;
+    }
+
+    p_arr[rep][network->time_slot][GREEN_PASS] = p_green / servers_green;
 }
 
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
-    double system_total_wait = 0;
     double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
     double visit_rt = 0;
     for (int i = 0; i < NUM_BLOCKS - 1; i++) {
@@ -316,25 +369,39 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
                     compl += s->completions;
                     visit_rt += visit * wait;
                 }
-                // servers++;
             }
         }
-        // printf("\nVisit block %d -> %f", i, visit_sum);
-        // printf("\nArrivals block %d %d", i, arrival_sum);
-        // printf("\nCompletions block %d %d", i, compl );
-        // block_mean_wait = wait / servers;
-        // system_total_wait += block_mean_wait;
     }
 
     double lambda_green = blocks[GREEN_PASS].total_arrivals / currentClock;
     double visit_green = lambda_green / external_arrival_rate;
     double wait = blocks[GREEN_PASS].area.node / blocks[GREEN_PASS].total_arrivals;
     visit_rt += visit_green * wait;
-    // printf("\nVisit block 4 -> %f", visit_green);
-    // printf("\nArrivals block 4 %d", blocks[GREEN_PASS].total_arrivals);
-    // printf("\nCompletions block 4 %d", blocks[GREEN_PASS].total_completions + blocks[GREEN_PASS].total_bypassed);
-    // printf("\nTotal Dropped: %d\n", blocks[TEMPERATURE_CTRL].total_bypassed);
+
     rt_arr[pos] = visit_rt;
+}
+
+void print_p_on_csv(network_status *network, double currentClock, int slot) {
+    FILE *csv;
+    char filename[30];
+
+    for (int i = 0; i < NUM_BLOCKS; i++) {
+        double p = 0;
+        snprintf(filename, 30, "u_%d_finite_slot%d.csv", i, slot);
+        csv = open_csv(filename);
+        for (int j = 0; j < MAX_SERVERS; j++) {
+            server *s = &network->server_list[i][j];
+            if (!s->used) {
+                break;
+            } else {
+                if (s->arrivals > 0) {
+                    p = (s->area.service / currentClock);
+                    append_on_csv(csv, p, 0);
+                }
+            }
+        }
+        fclose(csv);
+    }
 }
 
 void print_percentage(double part, double total, double oldPart) {
