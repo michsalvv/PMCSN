@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     // }
     if (str_compare(simulation_mode, "FINITE") == 0) {
         PlantSeeds(521312312);
-        finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
+        finite_horizon_simulation(stop_simulation, 1);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         PlantSeeds(231232132);
@@ -174,7 +174,7 @@ void finite_horizon_run(int stop_time, int repetition) {
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
     calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, repetition);
-    // print_ploss();
+    print_ploss();
 
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
@@ -475,7 +475,7 @@ void set_time_slot(int rep) {
             print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
         }
         calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, rep);
-        // print_ploss();
+        print_ploss();
         global_network_status.time_slot = 1;
         arrival_rate = LAMBDA_2;
         slot_switched[1] = true;
@@ -488,7 +488,7 @@ void set_time_slot(int rep) {
             print_p_on_csv(&global_network_status, clock.current, global_network_status.time_slot);
         }
 
-        // print_ploss();
+        print_ploss();
         global_network_status.time_slot = 2;
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
@@ -752,7 +752,11 @@ void init_config() {
     int slot1_ottima_orig[] = {14, 41, 3, 17, 20};
     int slot2_ottima_orig[] = {8, 18, 2, 9, 10};
 
-    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
+    int slot0_inf[] = {6, 20, 2, 9, 11};
+    int slot1_inf[] = {13, 42, 3, 16, 20};
+    int slot2_inf[] = {6, 16, 2, 8, 10};
+    config = get_config(slot0_inf, slot1_inf, slot2_inf);
+    // config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
 }
 
 void run() {
