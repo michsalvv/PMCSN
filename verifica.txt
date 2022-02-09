@@ -1,5 +1,0 @@
-vediamo chearrivi green pass uguale a somma blocchi job precedenti + 489 dropped
-
-vediamo che per ogni blocco somma enqueued + dasd = comple
-
-sadasddasDm
