@@ -383,11 +383,11 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
 
 void print_p_on_csv(network_status *network, double currentClock, int slot) {
     FILE *csv;
-    char filename[30];
+    char filename[100];
 
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
-        snprintf(filename, 30, "u_%d_finite_slot%d.csv", i, slot);
+        snprintf(filename, 100, "results/finite/u_%d_finite_slot%d.csv", i, slot);
         csv = open_csv(filename);
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
