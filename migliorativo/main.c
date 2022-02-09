@@ -7,9 +7,9 @@
 
 #include "./DES/rngs.h"
 #include "./DES/rvgs.h"
-#include "config.h"
+#include "./config.h"
+#include "./utils.h"
 #include "math.h"
-#include "utils.h"
 
 // Function Prototypes
 // --------------------------------------------------------
@@ -71,16 +71,12 @@ double global_loss[BATCH_K];
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        printf("Usage: ./simulate-migliorativo <FINITE/INFINITE/TEST> <TIME_SLOT>\n");
+        printf("Usage: ./migliorativo <FINITE/INFINITE/TEST> <TIME_SLOT>\n");
         exit(0);
     }
     simulation_mode = argv[1];
     num_slot = atoi(argv[2]);
 
-    if (num_slot > 2) {
-        printf("Specify time slot between 0 and 2\n");
-        exit(0);
-    }
     if (str_compare(simulation_mode, "FINITE") == 0) {
         PlantSeeds(521312312);
         finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
@@ -93,7 +89,6 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 }
-
 void print_ploss() {
     double loss_perc = (float)blocks[GREEN_PASS].total_bypassed / (float)blocks[GREEN_PASS].total_arrivals;
     printf("P_LOSS: %f\n", loss_perc);
@@ -132,6 +127,7 @@ void finite_horizon_run(int stop_time, int repetition) {
         set_time_slot(repetition);
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
+
         clock.next = min(nextCompletion->value, clock.arrival);
         for (int i = 0; i < NUM_BLOCKS; i++) {
             if (i == GREEN_PASS) {
@@ -331,7 +327,6 @@ void init_blocks() {
             s.completions = 0;
             s.arrivals = 0;
 
-            //AGGIUNTI PER MIGLIORATIVO
             s.head_service = NULL;
             s.tail = NULL;
             s.area.node = 0;
@@ -431,6 +426,7 @@ void load_balance(int block) {
 void update_network() {
     int actual, new = 0;
     int slot = global_network_status.time_slot;
+
     for (int j = 0; j < NUM_BLOCKS; j++) {
         actual = global_network_status.num_online_servers[j];
         new = config.slot_config[slot][j];
@@ -472,6 +468,7 @@ void set_time_slot(int rep) {
         arrival_rate = LAMBDA_3;
         slot_switched[2] = true;
         update_network();
+        print_servers_statistics(&global_network_status, clock.current, clock.current);
     }
 }
 
@@ -545,7 +542,6 @@ void dequeue(server *s) {
     free(j);
 }
 
-// Trova il servente libero con il minor numero di job in coda
 server *findShorterServer(struct block b) {
     int block_type = b.type;
     int active_servers = global_network_status.num_online_servers[block_type];
@@ -581,7 +577,6 @@ server *findShorterServer(struct block b) {
     return shorterTail;
 }
 
-// Processa un next-event di arrivo
 void process_arrival() {
     blocks[TEMPERATURE_CTRL].total_arrivals++;
 
@@ -608,7 +603,6 @@ void process_arrival() {
     clock.arrival = getArrival(clock.current);  // Genera prossimo arrivo
 }
 
-// Processa un next-event di
 void process_completion(compl c) {
     int block_type = c.server->block->type;
 
@@ -676,7 +670,6 @@ void process_completion(compl c) {
             shorterServer->status = BUSY;
             shorterServer->sum.service += service_2;
             shorterServer->sum.served++;
-            // shorterServer->area.service += service_2;
             return;
         } else {
             shorterServer->jobInQueue++;
@@ -710,7 +703,6 @@ void process_completion(compl c) {
     }
 }
 
-// Inizializza una configurazione
 void init_config() {
     int slot_null[] = {0, 0, 0, 0, 0};
     int slot_test_1[] = {7, 20, 2, 9, 11};
@@ -732,10 +724,12 @@ void init_config() {
     int slot1_ottima_orig[] = {14, 41, 3, 17, 20};
     int slot2_ottima_orig[] = {8, 18, 2, 9, 10};
 
-    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
+    int slot0_inf[] = {5, 19, 2, 9, 8};
+    int slot1_inf[] = {8, 20, 2, 10, 20};
+    int slot2_inf[] = {4, 13, 2, 6, 10};
+    config = get_config(slot0_inf, slot1_inf, slot2_inf);
 }
 
-// Scrive su un csv i tempi di risposta ad orizzonte finito
 void write_rt_csv_finite() {
     FILE *csv;
     char filename[100];
@@ -750,16 +744,26 @@ void write_rt_csv_finite() {
     }
 }
 
-// Stampa i risultati della simulazione ad orizzonte finito
 void print_results_finite() {
     double total = 0;
     for (int i = 0; i < NUM_REPETITIONS; i++) {
         total += repetitions_costs[i];
     }
+
     printf("\nTOTAL MEAN CONFIGURATION COST: %f\n", total / NUM_REPETITIONS);
+    for (int s = 0; s < 3; s++) {
+        printf("\nSlot #%d:", s);
+        for (int j = 0; j < NUM_BLOCKS; j++) {
+            printf("\nMean Utilization for block %s: ", stringFromEnum(j));
+            double p = 0;
+            for (int i = 0; i < NUM_REPETITIONS; i++) {
+                p += global_means_p_fin[i][s][j];
+            }
+            printf("%f", p / NUM_REPETITIONS);
+        }
+    }
 }
 
-// Scrive su un csv i tempi di risposta ad orizzonte infinito
 void write_rt_csv_infinite(int slot) {
     char filename[100];
     snprintf(filename, 100, "results/infinite/rt_infinite_slot_%d.csv", slot);
@@ -771,7 +775,6 @@ void write_rt_csv_infinite(int slot) {
     fclose(csv);
 }
 
-// Stampa i risultati della simulazione ad orizzonte infinito
 void print_results_infinite(int slot) {
     double cost = calculate_cost(&global_network_status);
     printf("\n\nTOTAL SLOT %d CONFIGURATION COST: %f\n", slot, cost);
@@ -792,7 +795,6 @@ void print_results_infinite(int slot) {
     printf("\n");
 }
 
-// Resetta tutte le statistiche tra due batch ad orizzonte infinito
 void reset_statistics() {
     clock.batch_current = clock.current;
     for (int block_type = 0; block_type < NUM_BLOCKS; block_type++) {
