@@ -21,7 +21,6 @@ void print_line() {
     printf("\n————————————————————————————————————————————————————————————————————————————————————————\n");
 }
 
-// TODO necessario perchè strcmp non viene letto da gdb
 int str_compare(char *str1, char *str2) {
     while (*str1 && *str1 == *str2) {
         str1++;

@@ -109,13 +109,14 @@ void finite_horizon_simulation(int stop_time, int repetitions) {
 
     finite_csv = open_csv(filename);
 
-    for (int r = 0; r < repetitions; r++) {
+    //TODO rimettere le configurazioni
+    for (int r = 0; r < 1; r++) {
         finite_horizon_run(stop_time, r);
         if (r == 0 && strcmp(simulation_mode, "FINITE") == 0) {
             print_p_on_csv(&global_network_status, clock.current, 2);
         }
+        print_servers_statistics(&global_network_status, clock.current, clock.current);
         clear_environment();
-
         print_percentage(r, repetitions, r - 1);
     }
 
@@ -710,31 +711,6 @@ void process_completion(compl c) {
     }
 }
 
-// Inizializza una configurazione
-void init_config() {
-    int slot_null[] = {0, 0, 0, 0, 0};
-    int slot_test_1[] = {7, 20, 2, 9, 11};
-    int slot_test_2[] = {3, 11, 1, 3, 9};
-    int slot_test_3[] = {14, 40, 3, 18, 20};
-    int slot_test_4[] = {6, 18, 2, 10, 10};
-    int slot_test_5[] = {9, 19, 3, 11, 15};
-    int slot[] = {50, 50, 50, 50, 50};
-
-    int slot0_non_ottima[] = {12, 25, 4, 15, 20};
-    int slot1_non_ottima[] = {18, 46, 5, 20, 25};
-    int slot2_non_ottima[] = {10, 28, 5, 12, 15};
-
-    int slot0_ottima[] = {8, 22, 2, 10, 11};
-    int slot1_ottima[] = {15, 44, 3, 18, 20};
-    int slot2_ottima[] = {7, 21, 2, 9, 10};
-
-    int slot0_ottima_orig[] = {8, 21, 2, 9, 11};
-    int slot1_ottima_orig[] = {14, 41, 3, 17, 20};
-    int slot2_ottima_orig[] = {8, 18, 2, 9, 10};
-
-    config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
-}
-
 // Scrive su un csv i tempi di risposta ad orizzonte finito
 void write_rt_csv_finite() {
     FILE *csv;
@@ -813,4 +789,34 @@ void reset_statistics() {
             }
         }
     }
+}
+
+// Inizializza una configurazione
+void init_config() {
+    int slot_null[] = {0, 0, 0, 0, 0};
+    int slot_test_1[] = {7, 20, 2, 9, 11};
+    int slot_test_2[] = {3, 11, 1, 3, 9};
+    int slot_test_3[] = {14, 40, 3, 18, 20};
+    int slot_test_4[] = {6, 18, 2, 10, 10};
+    int slot_test_5[] = {9, 19, 3, 11, 15};
+    int slot[] = {50, 50, 50, 50, 50};
+
+    int slot0_non_ottima[] = {12, 25, 4, 15, 20};
+    int slot1_non_ottima[] = {18, 46, 5, 20, 25};
+    int slot2_non_ottima[] = {10, 28, 5, 12, 15};
+
+    int slot0_ottima[] = {8, 22, 2, 10, 11};
+    int slot1_ottima[] = {15, 44, 3, 18, 20};
+    int slot2_ottima[] = {7, 21, 2, 9, 10};
+
+    int slot0_ottima_orig[] = {8, 21, 2, 9, 11};
+    int slot1_ottima_orig[] = {14, 41, 3, 17, 20};
+    int slot2_ottima_orig[] = {8, 18, 2, 9, 10};
+
+    config = get_config(slot0_non_ottima, slot1_non_ottima, slot2_non_ottima);
+
+    int slot0_inf[] = {6, 20, 2, 9, 11};
+    int slot1_inf[] = {13, 42, 3, 16, 20};
+    int slot2_inf[] = {6, 16, 2, 8, 10};
+    //config = get_config(slot0_inf, slot1_inf, slot2_inf);
 }
