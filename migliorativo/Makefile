@@ -1,5 +1,5 @@
 all:
-	gcc ../DES/rngs.c ../DES/rvgs.c migliorativo.c utils_2.c -lm -o migliorativo -g
+	gcc ./DES/rngs.c ./DES/rvgs.c main.c utils.c -lm -o simulate-migliorativo -g
 
 clean:
 	rm test
