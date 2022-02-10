@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     // }
     if (str_compare(simulation_mode, "FINITE") == 0) {
         PlantSeeds(521312312);
-        finite_horizon_simulation(stop_simulation, 1);
+        finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         PlantSeeds(231232132);
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 }
 void print_ploss() {
     double loss_perc = (float)blocks[GREEN_PASS].total_bypassed / (float)blocks[GREEN_PASS].total_arrivals;
-    printf("P_LOSS: %f\n", loss_perc);
+    // printf("P_LOSS: %f\n", loss_perc);
 }
 
 void finite_horizon_simulation(int stop_time, int repetitions) {
@@ -174,7 +174,8 @@ void finite_horizon_run(int stop_time, int repetition) {
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);
     calculate_statistics_fin(&global_network_status, clock.current, response_times, global_means_p_fin, repetition);
-    print_ploss();
+    // print_ploss();
+    // print_servers_statistics(&global_network_status, 0, clock.current);
 
     for (int i = 0; i < 3; i++) {
         statistics[repetition][i] = response_times[i];
@@ -233,11 +234,16 @@ void infinite_horizon_batch(int slot, int b, int k) {
     int q = 0;
     global_network_status.time_slot = slot;
     double old;
-
+    double last_clock = 0;
+    int setted = 0;
     while (true) {
         compl *nextCompletion = &global_sorted_completions.sorted_list[0];
         server *nextCompletionServer = nextCompletion->server;
         if (n >= b) {
+            if (!setted) {
+                last_clock = clock.current;
+                setted = true;
+            }
             clock.next = nextCompletion->value;  // Ottengo il prossimo evento
             if (clock.next == INFINITY) {
                 break;
@@ -270,7 +276,7 @@ void infinite_horizon_batch(int slot, int b, int k) {
         }
     }
     // print_servers_statistics(&global_network_status, 0, (clock.current - clock.batch_current));
-    calculate_statistics_inf(&global_network_status, blocks, (clock.current - clock.batch_current), infinite_statistics, k);
+    calculate_statistics_inf(&global_network_status, blocks, (last_clock - clock.batch_current), infinite_statistics, k);
     for (int i = 0; i < NUM_BLOCKS; i++) {
         double p = 0;
         int n = 0;
@@ -735,7 +741,7 @@ void init_config() {
     int slot_null[] = {0, 0, 0, 0, 0};
     int slot_test_1[] = {7, 20, 2, 9, 11};
     int slot_test_2[] = {3, 11, 1, 3, 9};
-    int slot_test_3[] = {14, 40, 3, 18, 20};
+    int slot_test_3[] = {14, 40, 8, 22, 34};
     int slot_test_4[] = {6, 18, 2, 10, 10};
     int slot_test_5[] = {9, 19, 3, 11, 15};
     int slot[] = {50, 50, 50, 50, 50};
@@ -755,8 +761,11 @@ void init_config() {
     int slot0_inf[] = {6, 20, 2, 9, 11};
     int slot1_inf[] = {13, 42, 3, 16, 20};
     int slot2_inf[] = {6, 16, 2, 8, 10};
-    config = get_config(slot0_inf, slot1_inf, slot2_inf);
-    // config = get_config(slot0_ottima, slot1_ottima, slot2_ottima);
+
+    int slot_visit_0[] = {3, 3, 3, 3, 3};
+    int slot_visit_1[] = {3, 3, 3, 3, 3};
+    int slot_visit_2[] = {3, 3, 3, 3, 3};
+    config = get_config(slot_test_3, slot_test_3, slot_test_3);
 }
 
 void run() {

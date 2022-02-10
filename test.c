@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     if (str_compare(simulation_mode, "FINITE") == 0) {
         PlantSeeds(231232132);
         remove("continuos_finite.csv");
-        finite_horizon_simulation(stop_simulation, NUM_REPETITIONS);
+        finite_horizon_simulation(stop_simulation, 1);
 
     } else if (str_compare(simulation_mode, "INFINITE") == 0) {
         PlantSeeds(231232132);
@@ -195,7 +195,7 @@ void finite_horizon_run(int stop_time, int repetition) {
         }
     }
     calculate_statistics_fin(&global_network_status, blocks, clock.current, statistics, repetition);
-    // print_ploss();
+    print_statistics(&global_network_status, blocks, clock.current, &global_sorted_completions);
 
     end_servers();
     repetitions_costs[repetition] = calculate_cost(&global_network_status);

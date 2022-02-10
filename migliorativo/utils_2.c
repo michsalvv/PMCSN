@@ -284,6 +284,7 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
     double external_arrival_rate = 1 / (currentClock / temperature_arrivals);
     double visit_rt = 0;
 
+    // printf("\n===== FASCIA %d ======\n", network->time_slot);
     for (int i = 0; i < NUM_BLOCKS - 1; i++) {
         double block_mean_wait = 0;
         double wait = 0;
@@ -293,14 +294,16 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
         int arrival_sum = 0;
         int compl = 0;
 
+        // printf("\n===== BLOCCO %d ======\n", i);
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
             if (!s->used) {
                 break;
             } else {
                 if (s->arrivals > 0) {
+                    double service = s->area.service / s->arrivals;
                     double lambda = (double)s->arrivals / currentClock;
-                    double mu = s->arrivals / s->area.service;
+                    double mu = 1 / service;
                     double throughput = min(mu, lambda);
 
                     wait = s->area.node / s->arrivals;
@@ -312,6 +315,11 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
                     visit_rt += visit * wait;
                     p += (s->area.service / currentClock);
                     servers++;
+                    // printf("\n -- Server %d\n", j);
+                    // printf("Lambda: %f\n", lambda);
+                    // printf("mu: %f\n", mu);
+                    // printf("compl: %d\n", s->completions);
+                    // printf("Visit: %f\n", visit);
                 }
             }
             p_arr[rep][network->time_slot][i] = p / servers;
@@ -344,6 +352,7 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
     double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
     double visit_rt = 0;
+
     for (int i = 0; i < NUM_BLOCKS - 1; i++) {
         double block_mean_wait = 0;
         double wait = 0;
@@ -351,6 +360,8 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
         double visit_sum = 0;
         int arrival_sum = 0;
         int compl = 0;
+        double block_wait = 0;
+        printf("\n===== BLOCCO %d ======\n", i);
         for (int j = 0; j < MAX_SERVERS; j++) {
             server *s = &network->server_list[i][j];
             if (!s->used) {
@@ -362,15 +373,27 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
                     double throughput = min(mu, lambda);
 
                     wait = s->area.node / s->arrivals;
-
+                    double delay = s->area.queue / (double)s->arrivals;
                     double visit = throughput / external_arrival_rate;
                     visit_sum += visit;
                     arrival_sum += s->arrivals;
                     compl += s->completions;
                     visit_rt += visit * wait;
+                    block_wait += visit * wait;
+                    // printf("\n -- Server %d\n", j);
+                    // printf("Lambda: %f\n", lambda);
+                    // printf("mu: %f\n", mu);
+                    // printf("Arrivals: %d\n", s->arrivals);
+                    // printf("compl: %d\n", s->completions);
+                    // printf("Visit: %f\n", visit);
+                    // printf("Delay: %f\n", delay);
+                    // printf("Wait: %f\n", wait);
+
+                    printf("%f\n", visit);
                 }
             }
         }
+        // printf("block wait: %f\n", block_wait);
     }
 
     double lambda_green = blocks[GREEN_PASS].total_arrivals / currentClock;
