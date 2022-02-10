@@ -372,7 +372,7 @@ void process_completion(compl c) {
     }
 }
 
-// Genera un tempo di arrivo secondo la distribuzione di Poisson
+// Genera un tempo di arrivo secondo la distribuzione Esponenziale
 double getArrival(double current) {
     double arrival = current;
     SelectStream(254);

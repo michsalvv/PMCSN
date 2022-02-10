@@ -16,10 +16,12 @@ FILE *open_csv_appendMode(char *filename);
 void *append_on_csv(FILE *fpt, double ts, double p);
 void *append_on_csv_v2(FILE *fpt, double ts, double p);
 
+// Ritorna il minimo tra due valori
 double min(double x, double y) {
     return (x < y) ? x : y;
 }
 
+// Genera una configurazione di avvio per la simulazione
 network_configuration get_config(int *values_1, int *values_2, int *values_3) {
     network_configuration *config = malloc(sizeof(network_configuration));
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -30,6 +32,7 @@ network_configuration get_config(int *values_1, int *values_2, int *values_3) {
     return *config;
 }
 
+// Restituisce il codice del blocco di destinazione partendo dal blocco del controllo temperatura
 int routing_from_temperature() {
     double random = Uniform(0, 100);
     if (random < P_EXIT_TEMP) {
@@ -43,6 +46,7 @@ int routing_from_temperature() {
     }
 }
 
+// Ricerca binaria di un elemento su una lista ordinata
 int binarySearch(sorted_completions *compls, int low, int high, compl completion) {
     if (high < low) {
         return -1;
@@ -57,6 +61,8 @@ int binarySearch(sorted_completions *compls, int low, int high, compl completion
     }
     return binarySearch(compls, low, (mid - 1), completion);
 }
+
+// Elimina un elemento dalla lista ordinata
 int deleteElement(sorted_completions *compls, compl completion) {
     int n = compls->num_completions;
 
@@ -78,6 +84,7 @@ int deleteElement(sorted_completions *compls, compl completion) {
     return n - 1;
 }
 
+// Ritorna il blocco destinazione di un job dopo il suo completamento
 int getDestination(enum block_types from) {
     switch (from) {
         case TEMPERATURE_CTRL:
@@ -94,6 +101,7 @@ int getDestination(enum block_types from) {
     }
 }
 
+// Inserisce un elemento nella lista ordinata
 int insertSorted(sorted_completions *compls, compl completion) {
     int i;
     int n = compls->num_completions;
@@ -106,23 +114,28 @@ int insertSorted(sorted_completions *compls, compl completion) {
 
     return (n + 1);
 }
+
+// Rirtona la stringa corrispondente al blocco ricevuto in input
 char *stringFromEnum(enum block_types f) {
     char *strings[] = {"TEMPERATURE_CTRL", "TICKET_BUY", "SEASON_GATE", "TICKET_GATE", "GREEN_PASS"};
     return strings[f];
 }
 
+// Rirtona la stringa corrispondente allo stato ricevuto in input
 char *stringFromStatus(int status) {
     if (status)
         return "BUSY";
     return "IDLE";
 }
 
+// Ritorna la stringa corrispondente allo stato ricevuto in input
 char *stringFromOnline(int online) {
     if (online)
         return "ONLINE";
     return "OFFLINE";
 }
 
+// Stampa a schermo le informazioni relative ad ogni singolo server del sistema
 void printServerInfo(network_status network, int blockType) {
     int n = network.num_online_servers[blockType];
     printf("\n%s\n", stringFromEnum(blockType));
@@ -149,6 +162,7 @@ void print_network_status(network_status *network) {
     }
 }
 
+// Stampa a schermo la configurazione in utilizzo
 void print_configuration(network_configuration *config) {
     for (int slot = 0; slot < 3; slot++) {
         printf("\nFASCIA #%d\n", slot);
@@ -166,6 +180,7 @@ int str_compare(char *str1, char *str2) {
     return *str1 - *str2;
 }
 
+// Calcola e stampa a schermo le statistiche di ogni singolo server
 void print_servers_statistics(network_status *network, double end_slot, double currentClock) {
     double system_total_wait = 0;
     for (int i = 0; i < NUM_BLOCKS; i++) {
@@ -206,6 +221,7 @@ void print_servers_statistics(network_status *network, double end_slot, double c
     }
 }
 
+// Calcola le statistiche ogni 5 minuti per l'analisi del continuo
 void calculate_statistics_clock(network_status *network, struct block blocks[], double currentClock, FILE *csv) {
     double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
     double visit_rt = 0;
@@ -244,11 +260,6 @@ void calculate_statistics_clock(network_status *network, struct block blocks[], 
     double visit_green = lambda_green / external_arrival_rate;
     double wait = blocks[GREEN_PASS].area.node / blocks[GREEN_PASS].total_arrivals;
     visit_rt += visit_green * wait;
-    // printf("\nVisit block 4 -> %f", visit_green);
-    // printf("\nArrivals block 4 %d", blocks[GREEN_PASS].total_arrivals);
-    // printf("\nCompletions block 4 %d", blocks[GREEN_PASS].total_completions + blocks[GREEN_PASS].total_bypassed);
-    // printf("\nTotal Dropped: %d\n", blocks[TEMPERATURE_CTRL].total_bypassed);
-    // printf("Visit rt: %f\n", visit_rt);
 
     append_on_csv_v2(csv, visit_rt, currentClock);
 }
@@ -264,6 +275,7 @@ void *append_on_csv_v2(FILE *fpt, double ts, double p) {
     return fpt;
 }
 
+// Calcola i costi del blocco in base al tempo passato online da ogni singolo server
 double calculate_cost(network_status *net) {
     double cm_costs[] = {CM_TEMPERATURE_CTRL_SERVER, CM_TICKET_BUY_SERVER, CM_SEASON_GATE_SERVER, CM_TICKET_GATE_SERVER, CM_GREEN_PASS_SERVER};
     double costs[5] = {0, 0, 0, 0, 0};
@@ -279,6 +291,7 @@ double calculate_cost(network_status *net) {
     return total;
 }
 
+// Calcola le stastitiche specificate ad orizzonte finito
 void calculate_statistics_fin(network_status *network, double currentClock, double rt_arr[], double p_arr[NUM_REPETITIONS][3][NUM_BLOCKS], int rep) {
     double temperature_arrivals = network->server_list[0][0].block->total_arrivals;
     double external_arrival_rate = 1 / (currentClock / temperature_arrivals);
@@ -323,7 +336,6 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
     double visit_green = lambda_green / external_arrival_rate;
     double wait = green_pass->area.node / green_pass->total_arrivals;
     visit_rt += visit_green * wait;
-    // printf("Visit rt: %f\n", visit_rt);
     rt_arr[network->time_slot] = visit_rt;
 
     double p_green = 0;
@@ -341,6 +353,7 @@ void calculate_statistics_fin(network_status *network, double currentClock, doub
     p_arr[rep][network->time_slot][GREEN_PASS] = p_green / servers_green;
 }
 
+// Calcola le stastitiche specificate ad orizzonte infinito
 void calculate_statistics_inf(network_status *network, struct block blocks[], double currentClock, double rt_arr[], int pos) {
     double external_arrival_rate = 1 / (currentClock / blocks[TEMPERATURE_CTRL].total_arrivals);
     double visit_rt = 0;
@@ -381,6 +394,7 @@ void calculate_statistics_inf(network_status *network, struct block blocks[], do
     rt_arr[pos] = visit_rt;
 }
 
+// Stampa tutte le tuilizzazioni ad orizzonte finito su un file csv
 void print_p_on_csv(network_status *network, double currentClock, int slot) {
     FILE *csv;
     char filename[100];
@@ -404,6 +418,7 @@ void print_p_on_csv(network_status *network, double currentClock, int slot) {
     }
 }
 
+// Stampa una barra di avanzamento relativa alla singola run di simulazione
 void print_percentage(double part, double total, double oldPart) {
     double percentage = part / total * 100;
     double oldPercentage = oldPart / total * 100;
@@ -423,12 +438,14 @@ void print_percentage(double part, double total, double oldPart) {
     printf(" %02.0f%%", percentage + 1);
 }
 
+// Ritorna un puntatore al file appena aperta
 FILE *open_csv(char *filename) {
     FILE *fpt;
     fpt = fopen(filename, "w+");
     return fpt;
 }
 
+// Inserisce in append una nuova linea al csv
 void *append_on_csv(FILE *fpt, double ts, double p) {
     fprintf(fpt, "%2.6f\n", ts);
     return fpt;
