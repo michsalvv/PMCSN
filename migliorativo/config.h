@@ -37,9 +37,9 @@
 
 // Routing Probabilities
 #define P_EXIT_TEMP 0.2
-#define P_TICKET_BUY 48.295
-#define P_TICKET_GATE 26.005
-#define P_SEASON_GATE 25.5
+#define P_TICKET_BUY 48.19841
+#define P_TICKET_GATE 25.95299
+#define P_SEASON_GATE 25.6486
 #define P_EXIT_GREEN 0.05
 
 // Costi mensili per server
